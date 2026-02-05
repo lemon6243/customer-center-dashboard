@@ -1,1 +1,29 @@
-notepad .gitignore
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# 백업 파일
+*.backup
+*.bak
+app_backup.py
+
+# 테스트 파일 (배포 제외)
+test_*.py
+test_*.xlsx
+generate_*.py
+cumulative_template.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
