@@ -351,11 +351,9 @@ def main():
             
             **누적형 지표**: 
 
-
             $$\\text{예측 점수} = \\frac{\\text{현재 점수}}{\\text{진행률}} \\text{ (최대값 제한)}$$
             
             **비누적형 지표**: 
-
 
             $$\\text{예측 점수} = \\text{현재 점수} \\text{ (변화 없음)}$$
             
@@ -416,7 +414,7 @@ def main():
             show_raw_data_verification(df)
 
 def show_overview(df: pd.DataFrame):
-    """전체 현황 탭 - 개선된 예측 로직 적용 + 순위 추가"""
+    """전체 현황 탭 - 개선된 예측 로직 적용"""
     st.header("📊 전체 현황")
     
     # 안전장치: 필수 컬럼 확인
@@ -504,27 +502,22 @@ def show_overview(df: pd.DataFrame):
     # 센터별 순위 차트
     st.subheader(f"🏆 센터별 현재 점수 및 예측 ({latest_month.strftime('%Y년 %m월')} 기준)")
     
-    # ⭐ 수정: 총점 기준 내림차순 정렬 후 순위 부여
-    df_sorted = df_latest.sort_values('총점', ascending=False).reset_index(drop=True)
-    df_sorted['순위'] = range(1, len(df_sorted) + 1)
-    
-    # 차트용: 오름차순 정렬 (하단부터 표시)
-    df_chart = df_sorted.sort_values('총점', ascending=True)
+    df_sorted = df_latest.sort_values('총점', ascending=True)
     
     # 예측 점수 기준으로 색상 결정
     colors = ['#28a745' if x >= 911 else '#ffc107' if x >= 870 else '#dc3545' 
-              for x in df_chart['예측점수']]
+              for x in df_sorted['예측점수']]
     
     fig = go.Figure()
     
     # 현재 점수
     fig.add_trace(go.Bar(
-        y=df_chart['센터명'],
-        x=df_chart['총점'],
+        y=df_sorted['센터명'],
+        x=df_sorted['총점'],
         orientation='h',
         marker=dict(color=colors, opacity=0.6),
         name='현재 점수',
-        text=df_chart['총점'].round(1),
+        text=df_sorted['총점'].round(1),
         textposition='inside',
         hovertemplate='<b>%{y}</b><br>현재: %{x:.1f}점<extra></extra>'
     ))
@@ -532,8 +525,8 @@ def show_overview(df: pd.DataFrame):
     # 예측 점수 (마커)
     if period_month < 6:
         fig.add_trace(go.Scatter(
-            y=df_chart['센터명'],
-            x=df_chart['예측점수'],
+            y=df_sorted['센터명'],
+            x=df_sorted['예측점수'],
             mode='markers',
             marker=dict(
                 size=12,
@@ -583,10 +576,9 @@ def show_overview(df: pd.DataFrame):
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # ⭐ 수정: 상세 테이블 (순위 포함, 1위부터 24위까지)
+    # 상세 테이블
     with st.expander("📋 상세 점수표 보기 (예측 점수 포함)"):
-        # 순위 컬럼을 맨 앞에 배치
-        display_cols = ['순위', '센터명', '총점']
+        display_cols = ['센터명', '총점']
         
         if period_month < 6:
             display_cols.extend(['예측점수', '안전점검_예측', '중점고객_예측', '사용계약_예측'])
@@ -605,14 +597,12 @@ def show_overview(df: pd.DataFrame):
         # 컬럼 존재 여부 확인
         display_cols = [col for col in display_cols if col in df_sorted.columns]
         
-        # ⭐ 스타일링: 총점 그라디언트
         styled_df = df_sorted[display_cols].style.background_gradient(
             subset=['총점'],
             cmap='RdYlGn',
             vmin=400,
             vmax=1000
         ).format({
-            '순위': '{}위',
             '총점': '{:.1f}',
             '예측점수': '{:.1f}',
             '안전점검_점수': '{:.1f}',
@@ -626,11 +616,10 @@ def show_overview(df: pd.DataFrame):
             '만족도_점수': '{:.1f}'
         })
         
-        st.dataframe(styled_df, use_container_width=True, height=600)
+        st.dataframe(styled_df, use_container_width=True, height=400)
         
         st.caption("""
         💡 **예측 점수 설명**
-        - **순위**: 현재 총점 기준 순위 (1위가 최고점)
         - **누적형** (안전점검, 중점고객, 사용계약): 진행률 기반으로 6월까지 증가 예상
         - **비누적형** (상담응대, 상담기여, 만족도): 현재 점수 유지 예상
         - 예측 총점은 1000점을 초과하지 않습니다

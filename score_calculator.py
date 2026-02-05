@@ -8,6 +8,12 @@ def calculate_scores(df: pd.DataFrame) -> pd.DataFrame:
     
     핵심: 각 월의 "누적 비율"로 점수 계산
     예: 3월 = 1~3월 누적 실적
+    
+    수정된 사용계약 등급제:
+    - A등급 (90% 이상): 50점
+    - B등급 (80~90% 미만): 45점
+    - C등급 (70~80% 미만): 40점
+    - D등급 (70% 미만): 35점
     """
     result_df = df.copy()
     
@@ -17,18 +23,25 @@ def calculate_scores(df: pd.DataFrame) -> pd.DataFrame:
     # 2. 중점고객안전점검율 (100점)
     result_df['중점고객_점수'] = (result_df['중점고객안전점검율'] * 100).round(2)
     
-    # 3. 사용계약율 (등급제, 50점)
+    # 3. 사용계약율 (등급제, 50점) - 수정됨
     def calculate_contract_score(rate):
+        """
+        수정된 사용계약 등급제:
+        - A등급 (90% 이상): 50점
+        - B등급 (80~90% 미만): 45점
+        - C등급 (70~80% 미만): 40점
+        - D등급 (70% 미만): 35점
+        """
         if pd.isna(rate):
-            return 0
-        if rate >= 0.90:
-            return 50
-        elif rate >= 0.80:
-            return 45
-        elif rate >= 0.70:
-            return 40
-        else:
             return 35
+        if rate >= 0.90:      # 90% 이상
+            return 50  # A등급
+        elif rate >= 0.80:    # 80% 이상 ~ 90% 미만
+            return 45  # B등급
+        elif rate >= 0.70:    # 70% 이상 ~ 80% 미만
+            return 40  # C등급
+        else:                 # 70% 미만
+            return 35  # D등급
     
     result_df['사용계약_점수'] = result_df['사용계약율'].apply(calculate_contract_score)
     
@@ -230,3 +243,202 @@ def get_weak_kpis(row: pd.Series, threshold: float = 85.0) -> List[str]:
             weak_kpis.append(f"{kpi_name} ({achievement_rate:.1f}%)")
     
     return weak_kpis
+
+
+def get_contract_grade(rate: float) -> str:
+    """
+    사용계약율 등급 반환
+    
+    수정된 기준:
+    - A등급: 90% 이상
+    - B등급: 80~90% 미만
+    - C등급: 70~80% 미만
+    - D등급: 70% 미만
+    """
+    if pd.isna(rate):
+        return 'D'
+    if rate >= 0.90:
+        return 'A'
+    elif rate >= 0.80:
+        return 'B'
+    elif rate >= 0.70:
+        return 'C'
+    else:
+        return 'D'
+
+
+def add_contract_grades(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    사용계약 등급 컬럼 추가
+    """
+    df = df.copy()
+    df['사용계약등급'] = df['사용계약율'].apply(get_contract_grade)
+    return df
+
+
+def get_improvement_suggestions(row: pd.Series, target: float = 911) -> Dict[str, any]:
+    """
+    개선 제안 생성
+    
+    목표 점수 달성을 위한 구체적 제안
+    """
+    current_score = row['총점']
+    gap = target - current_score
+    
+    if gap <= 0:
+        return {
+            'status': '목표 달성',
+            'message': f'현재 {current_score:.1f}점으로 목표({target}점)를 달성했습니다! 🎉',
+            'suggestions': []
+        }
+    
+    suggestions = []
+    
+    # 각 KPI별 개선 가능 점수 계산
+    kpi_improvements = {
+        '안전점검': {
+            'current': row['안전점검_점수'],
+            'max': 550,
+            'potential': 550 - row['안전점검_점수']
+        },
+        '중점고객': {
+            'current': row['중점고객_점수'],
+            'max': 100,
+            'potential': 100 - row['중점고객_점수']
+        },
+        '사용계약': {
+            'current': row['사용계약_점수'],
+            'max': 50,
+            'potential': 50 - row['사용계약_점수']
+        },
+        '상담응대': {
+            'current': row['상담응대_점수'],
+            'max': 100,
+            'potential': 100 - row['상담응대_점수']
+        },
+        '상담기여': {
+            'current': row['상담기여_점수'],
+            'max': 100,
+            'potential': 100 - row['상담기여_점수']
+        },
+        '만족도': {
+            'current': row['만족도_점수'],
+            'max': 100,
+            'potential': 100 - row['만족도_점수']
+        }
+    }
+    
+    # 개선 가능성 높은 순으로 정렬
+    sorted_kpis = sorted(
+        kpi_improvements.items(),
+        key=lambda x: x[1]['potential'],
+        reverse=True
+    )
+    
+    # 상위 3개 KPI에 대한 제안
+    for kpi_name, kpi_data in sorted_kpis[:3]:
+        if kpi_data['potential'] > 0:
+            improvement_needed = min(gap, kpi_data['potential'])
+            target_score = kpi_data['current'] + improvement_needed
+            achievement_rate = (target_score / kpi_data['max']) * 100
+            
+            suggestions.append({
+                'kpi': kpi_name,
+                'current': round(kpi_data['current'], 1),
+                'target': round(target_score, 1),
+                'improvement': round(improvement_needed, 1),
+                'max': kpi_data['max'],
+                'target_rate': round(achievement_rate, 1)
+            })
+    
+    return {
+        'status': '개선 필요',
+        'message': f'목표 달성까지 {gap:.1f}점 부족합니다.',
+        'gap': round(gap, 1),
+        'suggestions': suggestions
+    }
+
+
+def calculate_monthly_trends(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    월별 추이 계산
+    
+    전월 대비 증감, 누적 추세 등
+    """
+    df = df.copy()
+    df = df.sort_values(['센터명', '평가월'])
+    
+    # 센터별 전월 대비 증감
+    df['전월대비_총점'] = df.groupby('센터명')['총점'].diff()
+    df['전월대비_안전점검'] = df.groupby('센터명')['안전점검_점수'].diff()
+    df['전월대비_중점고객'] = df.groupby('센터명')['중점고객_점수'].diff()
+    df['전월대비_사용계약'] = df.groupby('센터명')['사용계약_점수'].diff()
+    df['전월대비_상담응대'] = df.groupby('센터명')['상담응대_점수'].diff()
+    df['전월대비_상담기여'] = df.groupby('센터명')['상담기여_점수'].diff()
+    df['전월대비_만족도'] = df.groupby('센터명')['만족도_점수'].diff()
+    
+    # 추세 방향
+    df['추세'] = df['전월대비_총점'].apply(
+        lambda x: '상승 ↑' if x > 0 else ('하락 ↓' if x < 0 else '유지 →') if pd.notna(x) else '-'
+    )
+    
+    return df
+
+
+def get_ranking_changes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    월별 순위 변동 추적
+    """
+    df = df.copy()
+    df = df.sort_values(['평가월', '총점'], ascending=[True, False])
+    
+    # 월별 순위 계산
+    df['순위'] = df.groupby('평가월')['총점'].rank(ascending=False, method='min').astype(int)
+    
+    # 전월 순위
+    df = df.sort_values(['센터명', '평가월'])
+    df['전월순위'] = df.groupby('센터명')['순위'].shift(1)
+    
+    # 순위 변동
+    df['순위변동'] = df['전월순위'] - df['순위']
+    df['순위변동_표시'] = df['순위변동'].apply(
+        lambda x: f'↑{int(x)}' if x > 0 else (f'↓{int(abs(x))}' if x < 0 else '→') if pd.notna(x) else '-'
+    )
+    
+    return df
+
+
+def export_summary_report(df: pd.DataFrame, filepath: str = None) -> pd.DataFrame:
+    """
+    요약 리포트 생성 (엑셀 내보내기용)
+    """
+    # 최신 월 데이터
+    latest = df.loc[df.groupby('센터명')['평가월'].idxmax()].copy()
+    
+    report = latest[[
+        '센터명', '평가월', '총점', '목표달성여부', '목표대비',
+        '안전점검_점수', '안전점검_달성률',
+        '중점고객_점수', '중점고객_달성률',
+        '사용계약_점수', '사용계약_달성률',
+        '상담응대_점수', '상담응대_달성률',
+        '상담기여_점수', '상담기여_달성률',
+        '만족도_점수', '만족도_달성률',
+        '민원대응적정성', '주의경고', '가점'
+    ]].copy()
+    
+    # 사용계약 등급 추가
+    report['사용계약등급'] = report['사용계약율'].apply(get_contract_grade) if '사용계약율' in report.columns else '-'
+    
+    # 순위
+    report = report.sort_values('총점', ascending=False)
+    report.insert(0, '순위', range(1, len(report) + 1))
+    
+    # 위험도
+    report['위험도'] = report['목표대비'].apply(
+        lambda x: '안전 🟢' if x >= 0 else ('주의 🟡' if x >= -20 else '위험 🔴')
+    )
+    
+    if filepath:
+        report.to_excel(filepath, index=False)
+    
+    return report
