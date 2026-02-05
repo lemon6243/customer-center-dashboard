@@ -352,9 +352,11 @@ def main():
             **누적형 지표**: 
 
 
+
             $$\\text{예측 점수} = \\frac{\\text{현재 점수}}{\\text{진행률}} \\text{ (최대값 제한)}$$
             
             **비누적형 지표**: 
+
 
 
             $$\\text{예측 점수} = \\text{현재 점수} \\text{ (변화 없음)}$$
@@ -699,7 +701,7 @@ def show_trend_analysis(df: pd.DataFrame):
         )
     
     with col2:
-        show_all = st.checkbox("전체 센터 표시", value=False)
+        show_all = st.checkbox("전체 센터 표시", value=True)  # ⬅️ 수정: value=True로 변경
     
     if show_all:
         df_filtered = df
