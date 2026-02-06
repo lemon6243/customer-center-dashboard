@@ -39,53 +39,6 @@ st.markdown("""
         box-shadow: 0 8px 16px rgba(0,0,0,0.1);
     }
     
-    /* 탭 스타일 개선 */
-    .stTabs {
-        background-color: #f8f9fa;
-        padding: 1rem;
-        border-radius: 10px;
-        margin-bottom: 2rem;
-    }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: white;
-        padding: 10px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 60px;
-        white-space: pre-wrap;
-        background-color: #f1f3f5;
-        border-radius: 8px;
-        color: #495057;
-        font-size: 16px;
-        font-weight: 600;
-        padding: 10px 20px;
-        border: 2px solid transparent;
-        transition: all 0.3s ease;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: #e9ecef;
-        border-color: #667eea;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white !important;
-        border-color: #667eea;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
-    
-    .stTabs [data-baseweb="tab-highlight"] {
-        background-color: transparent;
-    }
-    
     /* 사이드바 네비게이션 스타일 */
     div.row-widget.stRadio > div {
         flex-direction: column;
@@ -194,12 +147,6 @@ st.markdown("""
             padding: 1rem;
         }
         
-        .stTabs [data-baseweb="tab"] {
-            height: 50px;
-            font-size: 14px;
-            padding: 8px 12px;
-        }
-        
         div.row-widget.stRadio > div > label {
             padding: 15px 16px;
             font-size: 15px;
@@ -214,12 +161,6 @@ st.markdown("""
         .main-header {
             font-size: 1.5rem;
             padding: 0.8rem;
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            height: 45px;
-            font-size: 12px;
-            padding: 6px 10px;
         }
         
         div.row-widget.stRadio > div > label {
@@ -669,8 +610,6 @@ def show_distribution_stats(df: pd.DataFrame):
 
 def show_overview(df: pd.DataFrame):
     """전체 현황 탭"""
-    st.header("📊 전체 현황")
-    
     required_cols = ['총점', '목표달성여부']
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
@@ -856,16 +795,14 @@ def show_overview(df: pd.DataFrame):
         )
 
 def show_trend_analysis(df: pd.DataFrame):
-    """월별 추이 분석 - 전체 센터 기본값"""
-    st.header("📈 월별 추이")
-    
+    """월별 추이 분석"""
     st.subheader("🎯 센터별 추이 비교")
     
-    # ⭐ 전체 센터를 기본값으로 설정
+    # 전체 센터를 기본값으로 설정
     centers = st.multiselect(
         "비교할 센터 선택",
         options=sorted(df['센터명'].unique()),
-        default=sorted(df['센터명'].unique()),  # 전체 센터 선택
+        default=sorted(df['센터명'].unique()),
         help="비교하고 싶은 센터를 선택하세요. 기본값은 전체 센터입니다."
     )
     
@@ -948,8 +885,6 @@ def show_trend_analysis(df: pd.DataFrame):
 
 def show_center_detail(df: pd.DataFrame):
     """센터별 상세 분석"""
-    st.header("🎯 센터별 상세 분석")
-    
     device = get_device_type()
     
     if device == 'mobile':
@@ -1068,8 +1003,6 @@ def show_center_detail(df: pd.DataFrame):
 
 def show_risk_management(df: pd.DataFrame):
     """위험 관리"""
-    st.header("⚠️ 위험 관리")
-    
     latest_month = df['평가월'].max()
     df_latest = df[df['평가월'] == latest_month].copy()
     
@@ -1127,8 +1060,6 @@ def show_risk_management(df: pd.DataFrame):
 
 def show_data_analysis(df: pd.DataFrame):
     """데이터 분석"""
-    st.header("📊 데이터 분석")
-    
     device = get_device_type()
     
     if device == 'mobile':
@@ -1161,8 +1092,6 @@ def show_data_analysis(df: pd.DataFrame):
 
 def show_raw_data_verification(df: pd.DataFrame):
     """원본 데이터 확인"""
-    st.header("📋 원본 데이터")
-    
     st.dataframe(
         df,
         use_container_width=True,
@@ -1352,57 +1281,19 @@ def main():
     else:
         df = st.session_state.get('df_filtered', st.session_state['df'])
         
-        # 반응형 탭 구성
-        device = get_device_type()
-        
-        if device == 'mobile':
-            # 모바일: 중요한 탭만
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "📊 현황",
-                "🎯 센터",
-                "⚠️ 위험",
-                "📊 분석"
-            ])
-            
-            with tab1:
-                show_overview(df)
-            
-            with tab2:
-                show_center_detail(df)
-            
-            with tab3:
-                show_risk_management(df)
-            
-            with tab4:
-                show_data_analysis(df)
-        else:
-            # 데스크톱/태블릿: 전체 탭
-            tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-                "📊 전체 현황",
-                "📈 월별 추이",
-                "🎯 센터별 상세",
-                "⚠️ 위험 관리",
-                "📊 데이터 분석",
-                "📋 원본 데이터"
-            ])
-            
-            with tab1:
-                show_overview(df)
-            
-            with tab2:
-                show_trend_analysis(df)
-            
-            with tab3:
-                show_center_detail(df)
-            
-            with tab4:
-                show_risk_management(df)
-            
-            with tab5:
-                show_data_analysis(df)
-            
-            with tab6:
-                show_raw_data_verification(df)
+        # ⭐⭐⭐ 사이드바 네비게이션으로 직접 페이지 전환 ⭐⭐⭐
+        if selected_page == "📊 전체 현황":
+            show_overview(df)
+        elif selected_page == "📈 월별 추이":
+            show_trend_analysis(df)
+        elif selected_page == "🎯 센터별 상세":
+            show_center_detail(df)
+        elif selected_page == "⚠️ 위험 관리":
+            show_risk_management(df)
+        elif selected_page == "📊 데이터 분석":
+            show_data_analysis(df)
+        elif selected_page == "📋 원본 데이터":
+            show_raw_data_verification(df)
 
 
 if __name__ == "__main__":
