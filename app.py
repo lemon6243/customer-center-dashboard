@@ -1,5 +1,5 @@
 """
-도시가스 고객센터 성과 대시보드 (GitHub 데이터 저장 방식)
+도시가스 고객센터 성과 대시보드 (개선된 UI)
 완전 무료 - 카드 등록 불필요
 """
 
@@ -23,52 +23,226 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 전역 CSS (모바일 반응형 포함)
+# ==================== 전역 CSS (개선된 디자인) ====================
 st.markdown("""
 <style>
+    /* 메인 헤더 */
     .main-header {
         font-size: 2.5rem;
         font-weight: bold;
-        color: #003366;
         text-align: center;
-        margin-bottom: 1rem;
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
     }
+    
+    /* 페이지 타이틀 */
+    .page-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+    }
+    
+    /* 사이드바 메뉴 스타일 */
+    .sidebar-menu {
+        background-color: white;
+        padding: 10px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+    }
+    
+    /* 라디오 버튼 스타일 (메뉴) */
+    div.row-widget.stRadio > div {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    div.row-widget.stRadio > div > label {
+        background-color: white;
+        padding: 18px 20px;
+        border-radius: 12px;
+        border: 2px solid #e9ecef;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 600;
+        font-size: 17px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    div.row-widget.stRadio > div > label:hover {
+        border-color: #667eea;
+        background-color: #f8f9fa;
+        transform: translateX(5px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+    
+    div.row-widget.stRadio > div > label[data-checked="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white !important;
+        border-color: #667eea;
+        box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+        transform: translateX(5px);
+    }
+    
+    /* 알림 메시지 스타일 */
     .stAlert {
         margin-top: 1rem;
+        border-radius: 10px;
+        border-left: 5px solid #667eea;
+    }
+    
+    /* 메트릭 카드 스타일 개선 */
+    [data-testid="stMetricValue"] {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #667eea;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+    
+    /* 사이드바 개선 */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+    }
+    
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h2 {
+        color: #667eea;
+        font-weight: 700;
+        font-size: 1.4rem;
+        margin-top: 1rem;
+    }
+    
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {
+        color: #495057;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    
+    /* 버튼 스타일 개선 */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* 다운로드 버튼 */
+    .stDownloadButton > button {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        font-size: 16px;
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2);
+    }
+    
+    .stDownloadButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
+    }
+    
+    /* 파일 업로더 */
+    [data-testid="stFileUploader"] {
+        background-color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        border: 2px dashed #667eea;
+    }
+    
+    /* Expander 스타일 */
+    .streamlit-expanderHeader {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    
+    /* 구분선 */
+    hr {
+        margin: 2rem 0;
+        border: none;
+        border-top: 2px solid #e9ecef;
     }
     
     /* 모바일 반응형 */
     @media (max-width: 768px) {
         .main-header {
             font-size: 1.8rem;
+            padding: 1rem;
         }
+        
+        .page-title {
+            font-size: 1.5rem;
+        }
+        
+        div.row-widget.stRadio > div > label {
+            padding: 15px 16px;
+            font-size: 15px;
+        }
+        
         .stMetric {
             font-size: 0.9rem;
         }
-        div[data-testid="stMetricValue"] {
-            font-size: 1.2rem;
+        
+        [data-testid="stMetricValue"] {
+            font-size: 1.6rem;
         }
     }
     
     @media (max-width: 480px) {
         .main-header {
             font-size: 1.5rem;
+            padding: 0.8rem;
         }
+        
+        .page-title {
+            font-size: 1.3rem;
+        }
+        
+        div.row-widget.stRadio > div > label {
+            padding: 12px 14px;
+            font-size: 14px;
+        }
+        
         .stMetric {
             font-size: 0.8rem;
         }
-        div[data-testid="stMetricValue"] {
-            font-size: 1rem;
+        
+        [data-testid="stMetricValue"] {
+            font-size: 1.3rem;
         }
     }
 </style>
 """, unsafe_allow_html=True)
 
+# ==================== 유틸리티 함수 ====================
+
 def get_device_type():
     """디바이스 타입 감지 (간이 버전)"""
-    # Streamlit의 브라우저 정보는 직접 접근 불가하므로 세션 상태로 관리
     if 'device_type' not in st.session_state:
-        st.session_state['device_type'] = 'desktop'  # 기본값
+        st.session_state['device_type'] = 'desktop'
     return st.session_state['device_type']
 
 def get_responsive_columns(desktop_cols=4, tablet_cols=2, mobile_cols=1):
@@ -86,8 +260,6 @@ def get_responsive_columns(desktop_cols=4, tablet_cols=2, mobile_cols=1):
 def load_latest_data_from_github():
     """
     GitHub에 저장된 최신 데이터 로드 (캐시 적용) + 점수 자동 계산
-    
-    핵심: raw 데이터에서 세부 점수 컬럼이 없으면 자동 계산
     """
     data_path = "data/latest_data.xlsx"
     
@@ -95,11 +267,9 @@ def load_latest_data_from_github():
         try:
             df = pd.read_excel(data_path)
             
-            # 평가월을 datetime으로 변환
             if '평가월' in df.columns:
                 df['평가월'] = pd.to_datetime(df['평가월'])
             
-            # ⭐ 핵심: 점수 계산 (세부 점수 컬럼 생성)
             required_score_cols = [
                 '안전점검_점수', '중점고객_점수', '사용계약_점수',
                 '상담응대_점수', '상담기여_점수', '만족도_점수', '목표달성여부'
@@ -131,16 +301,8 @@ def convert_df_to_excel(df):
 def calculate_predicted_score_v2(row, current_month):
     """
     개선된 예측 점수 계산 (항목별 특성 반영)
-    
-    Args:
-        row: DataFrame의 한 행 (센터 데이터)
-        current_month: 현재 월 (1~6)
-    
-    Returns:
-        예측 총점 (딕셔너리: 항목별 예측 점수 포함)
     """
     if current_month >= 6:
-        # 6월이면 현재 점수가 최종 점수
         return {
             '예측총점': row['총점'],
             '안전점검_예측': row.get('안전점검_점수', 0),
@@ -152,39 +314,26 @@ def calculate_predicted_score_v2(row, current_month):
             '조정항목': row.get('민원대응적정성', 0) + row.get('주의경고', 0) + row.get('가점', 0)
         }
     
-    # 진행률 계산
     progress_rate = current_month / 6
     
-    # 1️⃣ 누적형 지표: 진행률 기반 예측
     안전점검_현재 = row.get('안전점검_점수', 0)
     중점고객_현재 = row.get('중점고객_점수', 0)
     사용계약_현재 = row.get('사용계약_점수', 0)
     
-    안전점검_예측 = min(안전점검_현재 / progress_rate, 550)  # 최대 550점
-    중점고객_예측 = min(중점고객_현재 / progress_rate, 100)  # 최대 100점
-    
-    # 사용계약은 등급제이므로 현재 등급 유지 또는 상승 가능성 고려
-    # 보수적 예측: 현재 점수의 1.1배까지만 상승 가능 (최대 50점)
+    안전점검_예측 = min(안전점검_현재 / progress_rate, 550)
+    중점고객_예측 = min(중점고객_현재 / progress_rate, 100)
     사용계약_예측 = min(사용계약_현재 * 1.1, 50)
     
-    # 2️⃣ 비누적형 지표: 현재 점수 기반 소폭 조정
-    # 상담응대율, 상담기여도: 누적 콜 대비 처리 건수이므로 큰 변화 없음
-    # 만족도: 누적 평균이므로 변화 적음
     상담응대_현재 = row.get('상담응대_점수', 0)
     상담기여_현재 = row.get('상담기여_점수', 0)
     만족도_현재 = row.get('만족도_점수', 0)
     
-    # 보수적 예측: 현재 점수에서 ±5% 범위 내 변동 가능
-    # 여기서는 현재 점수 그대로 유지 (가장 보수적)
     상담응대_예측 = 상담응대_현재
     상담기여_예측 = 상담기여_현재
     만족도_예측 = 만족도_현재
     
-    # 3️⃣ 조정 항목 (민원, 주의경고, 가점)
-    # 향후 발생 가능성이 있으므로 현재값 유지
     조정항목 = row.get('민원대응적정성', 0) + row.get('주의경고', 0) + row.get('가점', 0)
     
-    # 4️⃣ 예측 총점 계산
     예측총점 = (
         안전점검_예측 + 
         중점고객_예측 + 
@@ -195,7 +344,6 @@ def calculate_predicted_score_v2(row, current_month):
         조정항목
     )
     
-    # 안전장치: 1000점 초과 방지
     예측총점 = min(예측총점, 1000)
     
     return {
@@ -212,17 +360,9 @@ def calculate_predicted_score_v2(row, current_month):
 def get_risk_level(predicted_score, current_month):
     """
     예측 점수 기반 위험도 판정
-    
-    Args:
-        predicted_score: 6월 예측 점수
-        current_month: 현재 월
-    
-    Returns:
-        (위험레벨, 색상, 아이콘)
     """
     gap = predicted_score - 911
     
-    # 6월인 경우 (최종 점수)
     if current_month >= 6:
         if gap >= 0:
             return "안전", "#28a745", "🟢"
@@ -232,8 +372,6 @@ def get_risk_level(predicted_score, current_month):
             return "경고", "#fd7e14", "🟠"
         else:
             return "심각", "#dc3545", "🔴"
-    
-    # 1~5월인 경우 (예측 기반)
     else:
         if gap >= 50:
             return "안전", "#28a745", "🟢"
@@ -246,7 +384,56 @@ def get_risk_level(predicted_score, current_month):
         else:
             return "위험", "#dc3545", "🔴"
 
-# ==================== 데이터 분석 고도화 함수 ====================
+# ==================== 사이드바 네비게이션 ====================
+
+def sidebar_navigation():
+    """
+    사이드바 네비게이션 메뉴 (개선된 디자인)
+    """
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("## 📍 메뉴 선택")
+        
+        if 'current_page' not in st.session_state:
+            st.session_state['current_page'] = '📊 전체 현황'
+        
+        menu_options = [
+            "📊 전체 현황",
+            "📈 월별 추이", 
+            "🎯 센터별 상세",
+            "⚠️ 위험 관리",
+            "📊 데이터 분석",
+            "📋 원본 데이터"
+        ]
+        
+        selected_page = st.radio(
+            "페이지 선택",
+            menu_options,
+            index=menu_options.index(st.session_state['current_page']) 
+                  if st.session_state['current_page'] in menu_options 
+                  else 0,
+            label_visibility="collapsed"
+        )
+        
+        st.session_state['current_page'] = selected_page
+        
+        st.markdown("---")
+        
+        # 현재 페이지 정보
+        page_descriptions = {
+            "📊 전체 현황": "센터별 점수 순위와 목표 달성 현황을 확인하세요",
+            "📈 월별 추이": "월별 성과 변화 추이를 분석하세요",
+            "🎯 센터별 상세": "개별 센터의 상세 성과를 확인하세요",
+            "⚠️ 위험 관리": "목표 미달 위험 센터를 관리하세요",
+            "📊 데이터 분석": "심층 통계 분석 결과를 확인하세요",
+            "📋 원본 데이터": "전체 데이터 테이블을 조회하세요"
+        }
+        
+        st.info(f"**📌 현재 페이지**\n\n{selected_page}\n\n{page_descriptions[selected_page]}")
+        
+    return selected_page
+
+# ==================== 데이터 분석 함수들 ====================
 
 @st.cache_data
 def calculate_correlation_matrix(df: pd.DataFrame):
@@ -273,12 +460,9 @@ def show_correlation_analysis(df: pd.DataFrame):
         st.warning("⚠️ 상관관계 분석을 위한 데이터가 부족합니다.")
         return
     
-    # 반응형 레이아웃
     device = get_device_type()
     
     if device == 'mobile':
-        # 모바일: 세로 배치
-        # 히트맵
         fig = px.imshow(
             corr_matrix,
             text_auto='.2f',
@@ -290,10 +474,8 @@ def show_correlation_analysis(df: pd.DataFrame):
         fig.update_layout(height=400)
         st.plotly_chart(fig, use_container_width=True)
         
-        # 강한 상관관계
         show_strong_correlations(corr_matrix)
     else:
-        # 데스크톱/태블릿: 가로 배치
         col1, col2 = st.columns([2, 1])
         
         with col1:
@@ -379,7 +561,6 @@ def detect_outliers(df: pd.DataFrame):
         df_outliers = pd.DataFrame(outliers_detected)
         st.dataframe(df_outliers, use_container_width=True, hide_index=True)
         
-        # 반응형: 모바일은 expander 사용
         device = get_device_type()
         
         if device == 'mobile':
@@ -415,7 +596,7 @@ def show_outlier_details(df: pd.DataFrame, cols: list):
                 outlier_list.append(
                     f"- {row['센터명']}: {row[col]:.1f}점"
                 )
-            st.markdown("\n".join(outlier_list[:5]))  # 최대 5개만 표시
+            st.markdown("\n".join(outlier_list[:5]))
             
             if len(outliers) > 5:
                 st.caption(f"... 외 {len(outliers)-5}개")
@@ -425,19 +606,15 @@ def analyze_score_distribution(df: pd.DataFrame):
     st.subheader("📊 점수 분포 분석")
     
     with st.spinner("📊 분포 분석 중..."):
-        # 최신 월 데이터
         latest_month = df['평가월'].max()
         df_latest = df[df['평가월'] == latest_month]
         
-        # 반응형 레이아웃
         device = get_device_type()
         
         if device == 'mobile':
-            # 모바일: 세로 배치
             show_distribution_chart(df_latest, '총점')
             show_distribution_stats(df_latest)
         else:
-            # 데스크톱/태블릿: 가로 배치
             col1, col2 = st.columns([2, 1])
             
             with col1:
@@ -453,12 +630,11 @@ def show_distribution_chart(df: pd.DataFrame, col: str):
     fig.add_trace(go.Histogram(
         x=df[col],
         nbinsx=20,
-        marker_color='#003366',
+        marker_color='#667eea',
         opacity=0.7,
         name='분포'
     ))
     
-    # 목표선
     fig.add_vline(
         x=911,
         line_dash="dash",
@@ -467,7 +643,6 @@ def show_distribution_chart(df: pd.DataFrame, col: str):
         annotation_text="목표: 911점"
     )
     
-    # 평균선
     mean_val = df[col].mean()
     fig.add_vline(
         x=mean_val,
@@ -505,7 +680,6 @@ def show_distribution_stats(df: pd.DataFrame):
     
     st.divider()
     
-    # 사분위수
     Q1 = df['총점'].quantile(0.25)
     Q2 = df['총점'].quantile(0.50)
     Q3 = df['총점'].quantile(0.75)
@@ -515,268 +689,10 @@ def show_distribution_stats(df: pd.DataFrame):
     st.markdown(f"- Q2 (50%): {Q2:.1f}점")
     st.markdown(f"- Q3 (75%): {Q3:.1f}점")
 
-# ==================== 메인 함수 ====================
-
-def main():
-    """메인 함수"""
-    
-    # 타이틀
-    st.markdown('<div class="main-header">🏢 도시가스 고객센터 성과 대시보드</div>', 
-                unsafe_allow_html=True)
-    
-    # 디바이스 타입 선택 (개발/테스트용)
-    with st.sidebar.expander("⚙️ 화면 설정"):
-        device = st.radio(
-            "디바이스 모드",
-            options=['desktop', 'tablet', 'mobile'],
-            index=0,
-            format_func=lambda x: {'desktop': '🖥️ 데스크톱', 'tablet': '📱 태블릿', 'mobile': '📱 모바일'}[x]
-        )
-        st.session_state['device_type'] = device
-        st.caption("실제 배포 시에는 자동 감지됩니다")
-    
-    # 세션 상태 초기화
-    if 'df' not in st.session_state:
-        with st.spinner("📊 데이터 로드 중..."):
-            df_github = load_latest_data_from_github()
-            if df_github is not None:
-                st.session_state['df'] = df_github
-            else:
-                st.session_state['df'] = None
-    
-    # ==================== 사이드바: 데이터 관리 ====================
-    with st.sidebar:
-        st.header("📂 데이터 관리")
-        
-        # 현재 데이터 정보
-        if st.session_state['df'] is not None:
-            df = st.session_state['df']
-            
-            st.success("✅ 데이터 로드됨")
-            
-            st.info(f"""
-            📌 **현재 데이터**
-            - 총 행수: {len(df):,}
-            - 센터 수: {df['센터명'].nunique()}개
-            - 평가 기간: {df['평가월'].min().strftime('%Y-%m')} ~ {df['평가월'].max().strftime('%Y-%m')}
-            - 최종 업데이트: GitHub 최신 버전
-            """)
-        else:
-            st.warning("⚠️ 데이터가 없습니다.")
-        
-        st.divider()
-        
-        # 새 데이터 업로드
-        st.subheader("📤 새 데이터 업로드")
-        
-        uploaded_file = st.file_uploader(
-            "엑셀 파일 선택 (xlsx)",
-            type=['xlsx'],
-            help="월별 평가 데이터가 포함된 엑셀 파일을 업로드하세요"
-        )
-        
-        if uploaded_file:
-            with st.spinner("📊 데이터 처리 중..."):
-                try:
-                    df_raw = load_cumulative_data(uploaded_file)
-                    is_valid, message = validate_cumulative_data(df_raw)
-                    
-                    if is_valid:
-                        st.success(f"✅ {message}")
-                        df_scored = calculate_scores(df_raw)
-                        st.session_state['df'] = df_scored
-                        
-                        st.info(f"""
-                        📊 **처리 완료**
-                        - 총 {len(df_scored):,}행
-                        - {df_scored['센터명'].nunique()}개 센터
-                        - {df_scored['평가월'].nunique()}개월 데이터
-                        """)
-                        
-                        excel_data = convert_df_to_excel(df_scored)
-                        
-                        st.download_button(
-                            label="💾 처리된 데이터 다운로드",
-                            data=excel_data,
-                            file_name=f"latest_data_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            help="이 파일을 data/latest_data.xlsx로 저장 후 GitHub에 업로드하세요"
-                        )
-                    else:
-                        st.error(f"❌ {message}")
-                        
-                except Exception as e:
-                    st.error(f"❌ 오류 발생: {e}")
-                    import traceback
-                    with st.expander("🔍 상세 오류 (개발자용)"):
-                        st.code(traceback.format_exc())
-        
-        st.divider()
-        
-        # 필터 옵션
-        if st.session_state['df'] is not None:
-            df = st.session_state['df']
-            
-            st.subheader("🔍 필터")
-            
-            months = sorted(df['평가월'].dt.to_period('M').unique())
-            selected_months = st.multiselect(
-                "평가월 선택",
-                options=months,
-                default=months,
-                format_func=lambda x: x.strftime('%Y년 %m월')
-            )
-            
-            centers = sorted(df['센터명'].unique())
-            selected_centers = st.multiselect(
-                "센터 선택",
-                options=centers,
-                default=centers
-            )
-            
-            if selected_months and selected_centers:
-                df_filtered = df[
-                    (df['평가월'].dt.to_period('M').isin(selected_months)) &
-                    (df['센터명'].isin(selected_centers))
-                ]
-                st.session_state['df_filtered'] = df_filtered
-                st.caption(f"필터 결과: {len(df_filtered):,}행")
-            else:
-                st.session_state['df_filtered'] = df
-        
-        st.divider()
-        
-        with st.expander("📖 배점 규칙 및 예측 방식"):
-            st.markdown("""
-            **총점: 1000점**
-            
-            ### 📊 점수 구성
-            
-            **1️⃣ 누적형 지표** (진행률 기반 예측)
-            - **안전점검**: 최대 550점
-            - **중점고객**: 최대 100점
-            - **사용계약**: 최대 50점 (등급제)
-              - A등급 (90% 이상): 50점
-              - B등급 (80~90% 미만): 45점
-              - C등급 (70~80% 미만): 40점
-              - D등급 (70% 미만): 35점
-            
-            **2️⃣ 비누적형 지표** (현재 점수 유지)
-            - **상담응대**: 최대 100점 (누적 인입콜 대비 처리건수)
-            - **상담기여**: 최대 100점 (누적 인입콜 대비 처리건수)
-            - **만족도**: 최대 100점 (누적 평균 점수)
-            
-            **3️⃣ 조정 항목**
-            - 민원대응적정성 (감점)
-            - 주의/경고 (감점)
-            - 가점
-            
-            ---
-            
-            ### 🔮 예측 로직
-            
-            **누적형 지표**: 
-
-
-
-            $$\\text{예측 점수} = \\frac{\\text{현재 점수}}{\\text{진행률}} \\text{ (최대값 제한)}$$
-            
-            **비누적형 지표**: 
-
-
-
-            $$\\text{예측 점수} = \\text{현재 점수} \\text{ (변화 없음)}$$
-            
-            **최종 예측 총점**:
-            - 누적형 지표 예측값 + 비누적형 지표 현재값 + 조정항목
-            - **1000점 초과 방지** (안전장치)
-            
-            ---
-            
-            **목표: 911점 이상**
-            
-            ⚠️ **누적 평가 방식**
-            - 1~6월: 상반기 누적
-            - 6월 점수가 상반기 최종 점수
-            """)
-    
-    # ==================== 메인 화면 ====================
-    if st.session_state['df'] is None:
-        col1, col2, col3 = st.columns([1, 2, 1])
-        
-        with col2:
-            st.info("""
-            ### 👋 환영합니다!
-            
-            **시작하기:**
-            1. 왼쪽 사이드바에서 엑셀 파일 업로드
-            2. 처리된 데이터 다운로드
-            3. GitHub에 업로드하여 팀 공유
-            
-            **또는**
-            
-            `data/latest_data.xlsx` 파일이 있다면 자동으로 로드됩니다.
-            """)
-    else:
-        df = st.session_state.get('df_filtered', st.session_state['df'])
-        
-        # 반응형 탭 구성
-        device = get_device_type()
-        
-        if device == 'mobile':
-            # 모바일: 중요한 탭만
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "📊 현황",
-                "🎯 센터",
-                "⚠️ 위험",
-                "📊 분석"
-            ])
-            
-            with tab1:
-                show_overview(df)
-            
-            with tab2:
-                show_center_detail(df)
-            
-            with tab3:
-                show_risk_management(df)
-            
-            with tab4:
-                show_data_analysis(df)
-        else:
-            # 데스크톱/태블릿: 전체 탭
-            tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-                "📊 전체 현황",
-                "📈 월별 추이",
-                "🎯 센터별 상세",
-                "⚠️ 위험 관리",
-                "📊 데이터 분석",
-                "📋 원본 데이터"
-            ])
-            
-            with tab1:
-                show_overview(df)
-            
-            with tab2:
-                show_trend_analysis(df)
-            
-            with tab3:
-                show_center_detail(df)
-            
-            with tab4:
-                show_risk_management(df)
-            
-            with tab5:
-                show_data_analysis(df)
-            
-            with tab6:
-                show_raw_data_verification(df)
+# ==================== 페이지 함수들 ====================
 
 def show_overview(df: pd.DataFrame):
-    """전체 현황 탭 - 반응형 적용"""
-    st.header("📊 전체 현황")
-    
-    # 안전장치: 필수 컬럼 확인
+    """전체 현황 탭"""
     required_cols = ['총점', '목표달성여부']
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
@@ -786,12 +702,10 @@ def show_overview(df: pd.DataFrame):
     latest_month = df['평가월'].max()
     df_latest = df[df['평가월'] == latest_month].copy()
     
-    # 현재 월 계산 (1~12)
     current_month = latest_month.month
     is_first_half = current_month <= 6
     period_month = current_month if is_first_half else current_month - 6
     
-    # 개선된 예측 점수 계산
     with st.spinner("🔮 예측 점수 계산 중..."):
         prediction_results = df_latest.apply(
             lambda row: calculate_predicted_score_v2(row, period_month),
@@ -806,7 +720,6 @@ def show_overview(df: pd.DataFrame):
     df_latest['상담기여_예측'] = prediction_results.apply(lambda x: x['상담기여_예측'])
     df_latest['만족도_예측'] = prediction_results.apply(lambda x: x['만족도_예측'])
     
-    # 반응형 KPI 카드
     device = get_device_type()
     col_count = get_responsive_columns(desktop_cols=4, tablet_cols=2, mobile_cols=2)
     
@@ -853,7 +766,6 @@ def show_overview(df: pd.DataFrame):
     
     st.divider()
     
-    # 안내 메시지
     if period_month < 6:
         st.info(f"""
         💡 **개선된 예측 로직 안내**
@@ -864,23 +776,18 @@ def show_overview(df: pd.DataFrame):
         - 최종 평가는 6월 데이터로 진행됩니다
         """)
     
-    # 센터별 순위 차트
     st.subheader(f"🏆 센터별 현재 점수 및 예측 ({latest_month.strftime('%Y년 %m월')} 기준)")
     
-    # ⭐ 수정: 총점 기준 내림차순 정렬 후 순위 부여
     df_sorted = df_latest.sort_values('총점', ascending=False).reset_index(drop=True)
     df_sorted['순위'] = range(1, len(df_sorted) + 1)
     
-    # 차트용: 오름차순 정렬 (하단부터 표시)
     df_chart = df_sorted.sort_values('총점', ascending=True)
     
-    # 예측 점수 기준으로 색상 결정
     colors = ['#28a745' if x >= 911 else '#ffc107' if x >= 870 else '#dc3545' 
               for x in df_chart['예측점수']]
     
     fig = go.Figure()
     
-    # 현재 점수
     fig.add_trace(go.Bar(
         y=df_chart['센터명'],
         x=df_chart['총점'],
@@ -892,7 +799,6 @@ def show_overview(df: pd.DataFrame):
         hovertemplate='<b>%{y}</b><br>현재: %{x:.1f}점<extra></extra>'
     ))
     
-    # 예측 점수 (마커)
     if period_month < 6:
         fig.add_trace(go.Scatter(
             y=df_chart['센터명'],
@@ -908,7 +814,6 @@ def show_overview(df: pd.DataFrame):
             hovertemplate='<b>%{y}</b><br>예측: %{x:.1f}점<extra></extra>'
         ))
     
-    # 911점 기준선
     fig.add_vline(
         x=911,
         line_dash="dash",
@@ -918,7 +823,6 @@ def show_overview(df: pd.DataFrame):
         annotation_position="top right"
     )
     
-    # 1000점 기준선 (최대값)
     fig.add_vline(
         x=1000,
         line_dash="dot",
@@ -928,7 +832,6 @@ def show_overview(df: pd.DataFrame):
         annotation_position="bottom right"
     )
     
-    # 반응형 높이
     chart_height = 400 if device == 'mobile' else 600
     
     fig.update_layout(
@@ -949,1096 +852,506 @@ def show_overview(df: pd.DataFrame):
     
     st.plotly_chart(fig, use_container_width=True)
     
-    # ⭐ 수정: 상세 테이블 (순위 포함, 1위부터 24위까지)
     with st.expander("📋 상세 점수표 보기 (예측 점수 포함)"):
-        # 순위 컬럼을 맨 앞에 배치
-        display_cols = ['순위', '센터명', '총점']
+        display_cols = ['순위', '센터명', '총점', '예측점수', '목표대비', 
+                       '안전점검_점수', '중점고객_점수', '사용계약_점수',
+                       '상담응대_점수', '상담기여_점수', '만족도_점수']
         
-        if period_month < 6:
-            display_cols.extend(['예측점수', '안전점검_예측', '중점고객_예측', '사용계약_예측'])
+        df_display = df_sorted[display_cols].copy()
+        df_display['목표대비'] = (df_display['예측점수'] - 911).round(1)
         
-        display_cols.append('목표달성여부')
-        
-        optional_cols = [
-            '안전점검_점수', '중점고객_점수', '사용계약_점수',
-            '상담응대_점수', '상담기여_점수', '만족도_점수'
-        ]
-        
-        for col in optional_cols:
-            if col in df_sorted.columns:
-                display_cols.append(col)
-        
-        # 컬럼 존재 여부 확인
-        display_cols = [col for col in display_cols if col in df_sorted.columns]
-        
-        # ⭐ 스타일링: 총점 그라디언트
-        styled_df = df_sorted[display_cols].style.background_gradient(
-            subset=['총점'],
-            cmap='RdYlGn',
-            vmin=400,
-            vmax=1000
-        ).format({
-            '순위': '{}위',
-            '총점': '{:.1f}',
-            '예측점수': '{:.1f}',
-            '안전점검_점수': '{:.1f}',
-            '안전점검_예측': '{:.1f}',
-            '중점고객_점수': '{:.1f}',
-            '중점고객_예측': '{:.1f}',
-            '사용계약_점수': '{:.1f}',
-            '사용계약_예측': '{:.1f}',
-            '상담응대_점수': '{:.1f}',
-            '상담기여_점수': '{:.1f}',
-            '만족도_점수': '{:.1f}'
-        })
-        
-        table_height = 400 if device == 'mobile' else 600
-        
-        st.dataframe(styled_df, use_container_width=True, height=table_height)
-        
-        st.caption("""
-        💡 **예측 점수 설명**
-        - **순위**: 현재 총점 기준 순위 (1위가 최고점)
-        - **누적형** (안전점검, 중점고객, 사용계약): 진행률 기반으로 6월까지 증가 예상
-        - **비누적형** (상담응대, 상담기여, 만족도): 현재 점수 유지 예상
-        - 예측 총점은 1000점을 초과하지 않습니다
-        """)
+        st.dataframe(
+            df_display.style.format({
+                '총점': '{:.1f}',
+                '예측점수': '{:.1f}',
+                '목표대비': '{:+.1f}',
+                '안전점검_점수': '{:.1f}',
+                '중점고객_점수': '{:.1f}',
+                '사용계약_점수': '{:.1f}',
+                '상담응대_점수': '{:.1f}',
+                '상담기여_점수': '{:.1f}',
+                '만족도_점수': '{:.1f}'
+            }).background_gradient(subset=['예측점수'], cmap='RdYlGn', vmin=850, vmax=950),
+            use_container_width=True,
+            hide_index=True,
+            height=600
+        )
 
 def show_trend_analysis(df: pd.DataFrame):
-    """월별 누적 추이 탭 - 반응형 적용"""
-    st.header("📈 월별 누적 추이")
+    """월별 추이 분석"""
+    st.subheader("📈 센터별 누적 점수 추이")
     
-    with st.spinner("📊 추이 분석 중..."):
-        monthly_avg = df.groupby('평가월').agg({
-            '총점': 'mean',
-            '센터명': 'count'
-        }).reset_index()
-        monthly_avg.columns = ['평가월', '평균점수', '센터수']
+    selected_centers = st.multiselect(
+        "비교할 센터 선택 (최대 5개 권장)",
+        options=sorted(df['센터명'].unique()),
+        default=sorted(df['센터명'].unique())[:5]
+    )
     
-    fig = go.Figure()
+    if not selected_centers:
+        st.warning("⚠️ 센터를 선택하세요.")
+        return
     
-    fig.add_trace(go.Scatter(
-        x=monthly_avg['평가월'],
-        y=monthly_avg['평균점수'],
-        mode='lines+markers',
-        name='전체 평균',
-        line=dict(color='#003366', width=3),
-        marker=dict(size=10, color='#003366'),
-        hovertemplate='<b>%{x|%Y년 %m월}</b><br>평균: %{y:.1f}점<extra></extra>'
-    ))
+    df_filtered = df[df['센터명'].isin(selected_centers)].copy()
     
-    # 목표선
+    fig = px.line(
+        df_filtered,
+        x='평가월',
+        y='총점',
+        color='센터명',
+        markers=True,
+        title='센터별 월별 총점 추이',
+        labels={'총점': '총점 (점)', '평가월': '평가월'}
+    )
+    
     fig.add_hline(
         y=911,
         line_dash="dash",
         line_color="orange",
-        line_width=2,
         annotation_text="목표: 911점",
         annotation_position="right"
     )
     
-    # 반응형 높이
-    device = get_device_type()
-    chart_height = 300 if device == 'mobile' else 400
-    
     fig.update_layout(
-        title="월별 전체 평균 점수 추이 (누적)",
-        xaxis_title="평가월",
-        yaxis_title="평균 점수",
+        height=500,
         hovermode='x unified',
-        height=chart_height
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=1.01
+        )
     )
     
     st.plotly_chart(fig, use_container_width=True)
     
-    st.info("""
-    💡 **누적 추이 안내**
-    - 점수는 1월부터 누적되어 증가합니다
-    - 6월 또는 12월 데이터가 해당 반기 최종 점수입니다
-    """)
-    
     st.divider()
     
-    st.subheader("🎯 센터별 추이 비교")
+    st.subheader("📊 항목별 추이")
     
-    # 반응형 레이아웃
-    if device == 'mobile':
-        # 모바일: 세로 배치
-        show_all = st.checkbox("전체 센터 표시", value=True)
-        
-        if not show_all:
-            centers = st.multiselect(
-                "비교할 센터 선택",
-                options=sorted(df['센터명'].unique()),
-                default=sorted(df['센터명'].unique())[:2]  # 모바일은 2개만
-            )
-        else:
-            centers = []
-    else:
-        # 데스크톱/태블릿: 가로 배치
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            centers = st.multiselect(
-                "비교할 센터 선택 (최대 5개)",
-                options=sorted(df['센터명'].unique()),
-                default=sorted(df['센터명'].unique())[:3],
-                max_selections=5
-            )
-        
-        with col2:
-            show_all = st.checkbox("전체 센터 표시", value=True)
+    kpi_options = {
+        '안전점검': '안전점검_점수',
+        '중점고객': '중점고객_점수',
+        '사용계약': '사용계약_점수',
+        '상담응대': '상담응대_점수',
+        '상담기여': '상담기여_점수',
+        '만족도': '만족도_점수'
+    }
     
-    if show_all:
-        df_filtered = df
-    elif centers:
-        df_filtered = df[df['센터명'].isin(centers)]
-    else:
-        df_filtered = pd.DataFrame()
+    selected_kpi = st.selectbox(
+        "분석할 항목 선택",
+        options=list(kpi_options.keys())
+    )
     
-    if len(df_filtered) > 0:
+    kpi_col = kpi_options[selected_kpi]
+    
+    if kpi_col in df_filtered.columns:
         fig2 = px.line(
             df_filtered,
             x='평가월',
-            y='총점',
+            y=kpi_col,
             color='센터명',
             markers=True,
-            title="선택 센터 총점 추이 (누적)"
+            title=f'{selected_kpi} 월별 추이',
+            labels={kpi_col: f'{selected_kpi} 점수', '평가월': '평가월'}
         )
         
-        fig2.add_hline(y=911, line_dash="dash", line_color="orange", line_width=2)
-        
-        chart_height = 350 if device == 'mobile' else 400
-        fig2.update_layout(height=chart_height, hovermode='x unified')
+        fig2.update_layout(
+            height=400,
+            hovermode='x unified'
+        )
         
         st.plotly_chart(fig2, use_container_width=True)
-    else:
-        st.info("센터를 선택하세요.")
 
 def show_center_detail(df: pd.DataFrame):
-    """센터별 상세 탭 - 반응형 적용"""
-    st.header("🎯 센터별 상세 분석")
+    """센터별 상세 분석"""
+    st.subheader("🎯 센터 선택")
     
-    # 반응형 레이아웃
-    device = get_device_type()
+    latest_month = df['평가월'].max()
+    df_latest = df[df['평가월'] == latest_month]
     
-    if device == 'mobile':
-        center_name = st.selectbox(
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        selected_center = st.selectbox(
             "센터 선택",
             options=sorted(df['센터명'].unique())
         )
-    else:
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            center_name = st.selectbox(
-                "센터 선택",
-                options=sorted(df['센터명'].unique())
-            )
     
-    df_center = df[df['센터명'] == center_name].sort_values('평가월')
+    if not selected_center:
+        st.warning("⚠️ 센터를 선택하세요.")
+        return
     
-    latest = df_center.iloc[-1]
+    center_data = df_latest[df_latest['센터명'] == selected_center].iloc[0]
     
-    # 현재 월 계산
-    current_month = latest['평가월'].month
-    is_first_half = current_month <= 6
-    period_month = current_month if is_first_half else current_month - 6
+    st.markdown(f"## 📊 {selected_center} 상세 정보")
     
-    # 개선된 예측 점수
-    prediction = calculate_predicted_score_v2(latest, period_month)
-    predicted_score = prediction['예측총점']
+    col1, col2, col3, col4 = st.columns(4)
     
-    # KPI 요약 (반응형)
-    col_count = get_responsive_columns(desktop_cols=4, tablet_cols=2, mobile_cols=2)
-    cols = st.columns(col_count)
+    with col1:
+        st.metric("총점", f"{center_data['총점']:.1f}")
     
-    with cols[0]:
-        st.metric(
-            label="현재 총점",
-            value=f"{latest['총점']:.1f}점",
-            delta=f"{latest['총점'] - 911:.1f}점"
-        )
+    with col2:
+        goal_diff = center_data['총점'] - 911
+        st.metric("목표 대비", f"{goal_diff:+.1f}", delta_color="normal")
     
-    with cols[1]:
-        if period_month < 6:
-            st.metric(
-                label="6월 예측",
-                value=f"{predicted_score:.1f}점",
-                delta=f"{predicted_score - 911:.1f}점",
-                help="개선된 예측 로직 적용"
-            )
-        else:
-            status_emoji = "✅" if latest.get('목표달성여부', False) else "❌"
-            status_text = "달성" if latest.get('목표달성여부', False) else "미달성"
-            st.metric(
-                label="목표 달성",
-                value=status_text,
-                delta=status_emoji
-            )
+    with col3:
+        rank = (df_latest['총점'] > center_data['총점']).sum() + 1
+        st.metric("순위", f"{rank}위 / {len(df_latest)}개")
     
-    if col_count >= 3:
-        with cols[2]:
-            latest_month_df = df[df['평가월'] == df['평가월'].max()]
-            rank = (latest_month_df['총점'] >= latest['총점']).sum()
-            st.metric(
-                label="전체 순위",
-                value=f"{rank}위",
-                delta=f"/ {df['센터명'].nunique()}개"
-            )
-    
-    if col_count >= 4:
-        with cols[3]:
-            period_text = f"상반기 {period_month}월" if is_first_half else f"하반기 {period_month}월"
-            st.metric(
-                label="진행 상황",
-                value=period_text,
-                delta=f"{period_month/6*100:.1f}%"
-            )
+    with col4:
+        status = "달성 ✅" if center_data['총점'] >= 911 else "미달 ⚠️"
+        st.metric("목표 달성", status)
     
     st.divider()
     
-    # 예측 상세 분석 (기간 중일 때만)
-    if period_month < 6:
-        st.subheader("🔮 항목별 예측 분석")
-        
-        if device == 'mobile':
-            # 모바일: 세로 배치
-            st.markdown("### 📈 누적형 지표 (증가 예상)")
-            show_cumulative_prediction(latest, prediction)
-            
-            st.markdown("### 📊 비누적형 지표 (유지 예상)")
-            show_static_prediction(latest, prediction)
-        else:
-            # 데스크톱/태블릿: 가로 배치
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("### 📈 누적형 지표 (증가 예상)")
-                show_cumulative_prediction(latest, prediction)
-            
-            with col2:
-                st.markdown("### 📊 비누적형 지표 (유지 예상)")
-                show_static_prediction(latest, prediction)
-        
-        st.divider()
+    st.subheader("📊 항목별 점수 (레이더 차트)")
     
-    # 레이더 차트와 세부 점수
-    if device == 'mobile':
-        # 모바일: 세로 배치
-        show_kpi_radar(latest, center_name)
-        show_score_details(latest)
-    else:
-        # 데스크톱/태블릿: 가로 배치
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            show_kpi_radar(latest, center_name)
-        
-        with col2:
-            show_score_details(latest)
+    categories = ['안전점검', '중점고객', '사용계약', '상담응대', '상담기여', '만족도']
     
-    st.divider()
-    
-    st.subheader("📅 월별 성과 이력 (누적)")
-    
-    kpi_cols = [
-        '안전점검_점수', '중점고객_점수', '사용계약_점수',
-        '상담응대_점수', '상담기여_점수', '만족도_점수'
+    scores = [
+        center_data.get('안전점검_점수', 0),
+        center_data.get('중점고객_점수', 0),
+        center_data.get('사용계약_점수', 0),
+        center_data.get('상담응대_점수', 0),
+        center_data.get('상담기여_점수', 0),
+        center_data.get('만족도_점수', 0)
     ]
     
-    display_cols = ['평가월', '총점']
-    if '목표달성여부' in df_center.columns:
-        display_cols.append('목표달성여부')
+    max_scores = [550, 100, 50, 100, 100, 100]
     
-    for col in kpi_cols:
-        if col in df_center.columns:
-            display_cols.append(col)
-    
-    table_height = 300 if device == 'mobile' else 400
-    
-    st.dataframe(
-        df_center[display_cols].sort_values('평가월', ascending=False),
-        use_container_width=True,
-        hide_index=True,
-        height=table_height
-    )
-
-def show_cumulative_prediction(latest, prediction):
-    """누적형 지표 예측 표시"""
-    pred_data_cumulative = pd.DataFrame({
-        '지표': ['안전점검', '중점고객', '사용계약'],
-        '현재': [
-            latest.get('안전점검_점수', 0),
-            latest.get('중점고객_점수', 0),
-            latest.get('사용계약_점수', 0)
-        ],
-        '예측': [
-            prediction['안전점검_예측'],
-            prediction['중점고객_예측'],
-            prediction['사용계약_예측']
-        ],
-        '증가폭': [
-            prediction['안전점검_예측'] - latest.get('안전점검_점수', 0),
-            prediction['중점고객_예측'] - latest.get('중점고객_점수', 0),
-            prediction['사용계약_예측'] - latest.get('사용계약_점수', 0)
-        ]
-    })
-    
-    st.dataframe(
-        pred_data_cumulative.style.format({
-            '현재': '{:.1f}',
-            '예측': '{:.1f}',
-            '증가폭': '{:+.1f}'
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
-
-def show_static_prediction(latest, prediction):
-    """비누적형 지표 예측 표시"""
-    pred_data_static = pd.DataFrame({
-        '지표': ['상담응대', '상담기여', '만족도'],
-        '현재': [
-            latest.get('상담응대_점수', 0),
-            latest.get('상담기여_점수', 0),
-            latest.get('만족도_점수', 0)
-        ],
-        '예측': [
-            prediction['상담응대_예측'],
-            prediction['상담기여_예측'],
-            prediction['만족도_예측']
-        ],
-        '변화': [
-            prediction['상담응대_예측'] - latest.get('상담응대_점수', 0),
-            prediction['상담기여_예측'] - latest.get('상담기여_점수', 0),
-            prediction['만족도_예측'] - latest.get('만족도_점수', 0)
-        ]
-    })
-    
-    st.dataframe(
-        pred_data_static.style.format({
-            '현재': '{:.1f}',
-            '예측': '{:.1f}',
-            '변화': '{:+.1f}'
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
-
-def show_kpi_radar(latest, center_name):
-    """KPI 달성률 레이더 차트"""
-    st.subheader("📊 KPI 달성률")
-    
-    kpi_cols = [
-        '안전점검_점수', '중점고객_점수', '사용계약_점수',
-        '상담응대_점수', '상담기여_점수', '만족도_점수'
-    ]
-    
-    kpi_names = ['안전점검', '중점고객', '사용계약', '상담응대', '상담기여', '만족도']
-    kpi_max = [550, 100, 50, 100, 100, 100]
-    
-    values = [latest.get(col, 0) for col in kpi_cols]
-    percentages = [v/m*100 for v, m in zip(values, kpi_max)]
+    normalized_scores = [s/m*100 for s, m in zip(scores, max_scores)]
     
     fig = go.Figure()
     
     fig.add_trace(go.Scatterpolar(
-        r=percentages,
-        theta=kpi_names,
+        r=normalized_scores,
+        theta=categories,
         fill='toself',
-        name=center_name,
-        line_color='#003366',
-        fillcolor='rgba(0, 51, 102, 0.3)'
+        name=selected_center,
+        line_color='#667eea'
     ))
-    
-    device = get_device_type()
-    chart_height = 350 if device == 'mobile' else 400
     
     fig.update_layout(
         polar=dict(
             radialaxis=dict(
                 visible=True,
-                range=[0, 100],
-                ticksuffix='%'
+                range=[0, 100]
             )
         ),
         showlegend=True,
-        height=chart_height
+        height=500,
+        title=f"{selected_center} 항목별 달성률 (%)"
     )
     
     st.plotly_chart(fig, use_container_width=True)
-
-def show_score_details(latest):
-    """세부 점수 표시"""
-    st.subheader("📋 세부 점수")
-    
-    kpi_cols = [
-        '안전점검_점수', '중점고객_점수', '사용계약_점수',
-        '상담응대_점수', '상담기여_점수', '만족도_점수'
-    ]
-    
-    kpi_names = ['안전점검', '중점고객', '사용계약', '상담응대', '상담기여', '만족도']
-    kpi_max = [550, 100, 50, 100, 100, 100]
-    
-    score_data = []
-    for name, col, max_val in zip(kpi_names, kpi_cols, kpi_max):
-        score = latest.get(col, 0)
-        score_data.append({
-            '지표': name,
-            '획득': f"{score:.1f}",
-            '만점': max_val,
-            '달성률': f"{score/max_val*100:.1f}%"
-        })
-    
-    st.dataframe(pd.DataFrame(score_data), use_container_width=True, hide_index=True)
     
     st.divider()
     
-    st.caption("**조정 항목**")
-    adj_data = {
-        '민원대응': f"{latest.get('민원대응적정성', 0):.1f}점",
-        '주의/경고': f"{latest.get('주의경고', 0):.1f}점",
-        '가점': f"{latest.get('가점', 0):.1f}점"
-    }
-    st.json(adj_data)
+    st.subheader("📋 항목별 상세 점수")
+    
+    detail_data = []
+    for cat, score, max_score in zip(categories, scores, max_scores):
+        achievement = (score / max_score * 100) if max_score > 0 else 0
+        detail_data.append({
+            '항목': cat,
+            '점수': f"{score:.1f}",
+            '만점': max_score,
+            '달성률': f"{achievement:.1f}%"
+        })
+    
+    st.dataframe(
+        pd.DataFrame(detail_data),
+        use_container_width=True,
+        hide_index=True
+    )
 
 def show_risk_management(df: pd.DataFrame):
-    """위험 관리 탭 - 반응형 적용"""
-    st.header("⚠️ 위험 관리")
+    """위험 관리"""
+    st.subheader("⚠️ 목표 미달 위험 센터")
     
     latest_month = df['평가월'].max()
     df_latest = df[df['평가월'] == latest_month].copy()
     
-    # 현재 월 계산
     current_month = latest_month.month
     is_first_half = current_month <= 6
     period_month = current_month if is_first_half else current_month - 6
     
-    # 개선된 예측 점수 계산
-    with st.spinner("⚠️ 위험도 분석 중..."):
+    with st.spinner("🔮 위험도 분석 중..."):
         prediction_results = df_latest.apply(
             lambda row: calculate_predicted_score_v2(row, period_month),
             axis=1
         )
+        
+        df_latest['예측점수'] = prediction_results.apply(lambda x: x['예측총점'])
     
-    df_latest['예측점수'] = prediction_results.apply(lambda x: x['예측총점'])
+    risk_centers = df_latest[df_latest['예측점수'] < 911].copy()
     
-    # 위험도 분류 (예측 점수 기준)
-    df_latest['위험레벨'], df_latest['위험색상'], df_latest['위험아이콘'] = zip(
-        *df_latest.apply(
-            lambda row: get_risk_level(row['예측점수'], period_month),
-            axis=1
-        )
-    )
-    
-    df_latest['부족점수'] = 911 - df_latest['예측점수']
-    
-    # 위험도별 집계
-    risk_summary = df_latest['위험레벨'].value_counts()
-    
-    st.info(f"""
-    💡 **개선된 위험도 판정 기준** ({latest_month.strftime('%Y년 %m월')} 기준)
-    - 현재: {period_month}월차 진행 중 (진행률 {period_month/6*100:.1f}%)
-    - **누적형 지표**: 진행률 기반 예측 (안전점검, 중점고객, 사용계약)
-    - **비누적형 지표**: 현재 점수 유지 (상담응대, 상담기여, 만족도)
-    - 예측 총점은 **1000점을 초과하지 않습니다**
-    - 위험도는 6월 예측 점수를 기준으로 판정합니다
-    """)
-    
-    # 위험도별 카운트 (반응형)
-    device = get_device_type()
-    col_count = get_responsive_columns(desktop_cols=4, tablet_cols=2, mobile_cols=2)
-    
-    cols = st.columns(col_count)
-    
-    with cols[0]:
-        safe_count = risk_summary.get('안전', 0) + risk_summary.get('양호', 0)
-        st.metric("🟢 안전/양호", f"{safe_count}개")
-    
-    with cols[1]:
-        caution_count = risk_summary.get('주의', 0)
-        st.metric("🟡 주의", f"{caution_count}개")
-    
-    if col_count >= 3:
-        with cols[2]:
-            warning_count = risk_summary.get('경고', 0)
-            st.metric("🟠 경고", f"{warning_count}개")
-    
-    if col_count >= 4:
-        with cols[3]:
-            danger_count = risk_summary.get('위험', 0) + risk_summary.get('심각', 0)
-            st.metric("🔴 위험/심각", f"{danger_count}개")
-    
-    st.divider()
-    
-    # 위험 센터 목록 (예측 점수 < 911)
-    df_risk = df_latest[df_latest['예측점수'] < 911].copy()
-    df_risk = df_risk.sort_values('예측점수')
-    
-    if len(df_risk) == 0:
+    if len(risk_centers) == 0:
         st.success("🎉 모든 센터가 목표 달성 예상입니다!")
-        st.balloons()
-    else:
-        st.warning(f"⚠️ **{len(df_risk)}개 센터**가 목표 점수 미달 예상 (개선된 예측 기준)")
-        
-        st.subheader("📋 개선 필요 센터 상세")
-        
-        for idx, row in df_risk.iterrows():
-            risk_icon = row['위험아이콘']
-            risk_level = row['위험레벨']
-            
-            with st.expander(
-                f"{risk_icon} {risk_level} | {row['센터명']} - 현재 {row['총점']:.1f}점 / 예측 {row['예측점수']:.1f}점"
-            ):
-                if device == 'mobile':
-                    # 모바일: 세로 배치
-                    show_risk_center_detail_mobile(row)
-                else:
-                    # 데스크톱/태블릿: 가로 배치
-                    show_risk_center_detail_desktop(row)
-
-def show_risk_center_detail_mobile(row):
-    """위험 센터 상세 (모바일용)"""
-    st.markdown("**현재 점수**")
-    score_list = []
-    if '안전점검_점수' in row:
-        score_list.append(f"- 안전점검: {row['안전점검_점수']:.1f} / 550")
-    if '중점고객_점수' in row:
-        score_list.append(f"- 중점고객: {row['중점고객_점수']:.1f} / 100")
-    if '사용계약_점수' in row:
-        score_list.append(f"- 사용계약: {row['사용계약_점수']:.1f} / 50")
-    if '상담응대_점수' in row:
-        score_list.append(f"- 상담응대: {row['상담응대_점수']:.1f} / 100")
-    if '상담기여_점수' in row:
-        score_list.append(f"- 상담기여: {row['상담기여_점수']:.1f} / 100")
-    if '만족도_점수' in row:
-        score_list.append(f"- 만족도: {row['만족도_점수']:.1f} / 100")
-    
-    st.markdown("\n".join(score_list))
-    
-    st.divider()
-    
-    st.markdown("**개선 시나리오**")
-    show_improvement_scenario(row)
-
-def show_risk_center_detail_desktop(row):
-    """위험 센터 상세 (데스크톱용)"""
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("**현재 점수**")
-        score_list = []
-        if '안전점검_점수' in row:
-            score_list.append(f"- 안전점검: {row['안전점검_점수']:.1f} / 550")
-        if '중점고객_점수' in row:
-            score_list.append(f"- 중점고객: {row['중점고객_점수']:.1f} / 100")
-        if '사용계약_점수' in row:
-            score_list.append(f"- 사용계약: {row['사용계약_점수']:.1f} / 50")
-        if '상담응대_점수' in row:
-            score_list.append(f"- 상담응대: {row['상담응대_점수']:.1f} / 100")
-        if '상담기여_점수' in row:
-            score_list.append(f"- 상담기여: {row['상담기여_점수']:.1f} / 100")
-        if '만족도_점수' in row:
-            score_list.append(f"- 만족도: {row['만족도_점수']:.1f} / 100")
-        
-        st.markdown("\n".join(score_list))
-    
-    with col2:
-        st.markdown("**개선 시나리오**")
-        show_improvement_scenario(row)
-
-def show_improvement_scenario(row):
-    """개선 시나리오 표시"""
-    gap_to_target = 911 - row['예측점수']
-    
-    if gap_to_target < 0:
-        st.success(f"✅ 예측 점수가 목표를 {abs(gap_to_target):.1f}점 초과합니다!")
-    else:
-        st.error(f"⚠️ 6월까지 약 {gap_to_target:.1f}점 추가 필요")
-        
-        # 취약 지표 찾기 (누적형 지표 중심)
-        weak_kpis = []
-        if row.get('안전점검_점수', 0) / 550 < 0.7:
-            weak_kpis.append("안전점검 (누적)")
-        if row.get('중점고객_점수', 0) / 100 < 0.7:
-            weak_kpis.append("중점고객 (누적)")
-        if row.get('사용계약_점수', 0) / 50 < 0.8:
-            weak_kpis.append("사용계약 (등급)")
-        
-        if weak_kpis:
-            st.warning(f"🎯 **집중 개선 필요**: {', '.join(weak_kpis)}")
-            st.caption("💡 누적형 지표는 6월까지 지속적으로 상승합니다")
-        else:
-            st.info("💡 비누적형 지표(상담/만족도) 개선 필요")
-
-def show_data_analysis(df: pd.DataFrame):
-    """데이터 분석 탭 - 새로 추가"""
-    st.header("📊 데이터 분석")
-    
-    device = get_device_type()
-    
-    # 분석 메뉴
-    if device == 'mobile':
-        # 모바일: 드롭다운
-        analysis_type = st.selectbox(
-            "분석 유형 선택",
-            options=["상관관계 분석", "이상치 탐지", "점수 분포 분석"]
-        )
-        
-        if analysis_type == "상관관계 분석":
-            show_correlation_analysis(df)
-        elif analysis_type == "이상치 탐지":
-            detect_outliers(df)
-        else:
-            analyze_score_distribution(df)
-    else:
-        # 데스크톱/태블릿: 탭
-        subtab1, subtab2, subtab3 = st.tabs([
-            "📊 상관관계 분석",
-            "🔍 이상치 탐지",
-            "📈 점수 분포"
-        ])
-        
-        with subtab1:
-            show_correlation_analysis(df)
-        
-        with subtab2:
-            detect_outliers(df)
-        
-        with subtab3:
-            analyze_score_distribution(df)
-
-def show_raw_data_verification(df: pd.DataFrame):
-    """원본 데이터 확인 탭 - 반응형 적용"""
-    st.header("📋 원본 데이터 확인")
-    
-    st.info("""
-    💡 **사용 안내**
-    - 담당자가 제출한 원본(Raw) 데이터를 확인할 수 있습니다
-    - 센터와 월을 선택하여 입력값과 계산된 점수를 비교하세요
-    """)
-    
-    st.divider()
-    
-    # 반응형 레이아웃
-    device = get_device_type()
-    
-    if device == 'mobile':
-        # 모바일: 세로 배치
-        centers = ['전체'] + sorted(df['센터명'].unique().tolist())
-        selected_center = st.selectbox("🏢 센터 선택", options=centers, index=0)
-        
-        months = sorted(df['평가월'].dt.to_period('M').unique())
-        month_options = ['전체'] + [m.strftime('%Y년 %m월') for m in months]
-        selected_month_str = st.selectbox("📅 평가월 선택", options=month_options, index=0)
-    else:
-        # 데스크톱/태블릿: 가로 배치
-        col1, col2, col3 = st.columns([2, 2, 1])
-        
-        with col1:
-            centers = ['전체'] + sorted(df['센터명'].unique().tolist())
-            selected_center = st.selectbox("🏢 센터 선택", options=centers, index=0)
-        
-        with col2:
-            months = sorted(df['평가월'].dt.to_period('M').unique())
-            month_options = ['전체'] + [m.strftime('%Y년 %m월') for m in months]
-            selected_month_str = st.selectbox("📅 평가월 선택", options=month_options, index=0)
-    
-    df_filtered = df.copy()
-    
-    if selected_center != '전체':
-        df_filtered = df_filtered[df_filtered['센터명'] == selected_center]
-    
-    if selected_month_str != '전체':
-        selected_month = pd.Period(selected_month_str.replace('년 ', '-').replace('월', ''), freq='M')
-        df_filtered = df_filtered[df_filtered['평가월'].dt.to_period('M') == selected_month]
-    
-    if len(df_filtered) == 0:
-        st.warning("⚠️ 선택한 조건에 해당하는 데이터가 없습니다.")
         return
     
-    st.divider()
-    
-    # 반응형 메트릭
-    col_count = get_responsive_columns(desktop_cols=4, tablet_cols=2, mobile_cols=2)
-    cols = st.columns(col_count)
-    
-    with cols[0]:
-        st.metric("📊 조회 행수", f"{len(df_filtered):,}행")
-    
-    with cols[1]:
-        st.metric("🏢 센터 수", f"{df_filtered['센터명'].nunique()}개")
-    
-    if col_count >= 3:
-        with cols[2]:
-            st.metric("📅 기간", f"{df_filtered['평가월'].nunique()}개월")
-    
-    if col_count >= 4:
-        with cols[3]:
-            avg_score = df_filtered['총점'].mean()
-            st.metric("📈 평균 점수", f"{avg_score:.1f}점")
-    
-    st.divider()
-    
-    # 나머지 원본 데이터 확인 로직은 기존과 동일
-    subtab1, subtab2, subtab3 = st.tabs([
-        "📊 항목별 비교",
-        "📋 데이터 테이블",
-        "📥 다운로드"
-    ])
-    
-    with subtab1:
-        st.subheader("📊 입력값 vs 계산 점수 비교")
+    for _, row in risk_centers.iterrows():
+        risk_level, color, icon = get_risk_level(row['예측점수'], period_month)
         
-        for idx, row in df_filtered.iterrows():
-            with st.expander(f"🏢 {row['센터명']} | 📅 {row['평가월'].strftime('%Y년 %m월')}", 
-                           expanded=(len(df_filtered) == 1)):
-                
-                if device == 'mobile':
-                    # 모바일: 세로 배치
-                    show_score_comparison_mobile(row)
-                else:
-                    # 데스크톱/태블릿: 가로 배치
-                    show_score_comparison_desktop(row)
-    
-    with subtab2:
-        st.subheader("📋 원본 데이터 전체 테이블")
-        
-        display_mode = st.radio(
-            "표시 모드 선택",
-            options=["입력값만 보기", "입력값 + 점수", "전체 데이터"],
-            horizontal=(device != 'mobile')
-        )
-        
-        if display_mode == "입력값만 보기":
-            display_cols = [
-                '센터명', '평가월',
-                '안전점검실점검율', '중점고객안전점검율', '사용계약율',
-                '상담응대율', '상담기여도', '고객서비스만족도',
-                '민원대응적정성', '주의경고', '가점'
-            ]
-        elif display_mode == "입력값 + 점수":
-            display_cols = [
-                '센터명', '평가월', '총점',
-                '안전점검실점검율', '안전점검_점수',
-                '중점고객안전점검율', '중점고객_점수',
-                '사용계약율', '사용계약_점수',
-                '상담응대율', '상담응대_점수',
-                '상담기여도', '상담기여_점수',
-                '고객서비스만족도', '만족도_점수'
-            ]
-        else:
-            display_cols = df_filtered.columns.tolist()
-        
-        display_cols = [col for col in display_cols if col in df_filtered.columns]
-        
-        table_height = 400 if device == 'mobile' else 500
-        
-        st.dataframe(
-            df_filtered[display_cols],
-            use_container_width=True,
-            height=table_height
-        )
-    
-    with subtab3:
-        st.subheader("📥 데이터 다운로드")
-        
-        st.info("💡 현재 필터링된 데이터를 엑셀 파일로 다운로드할 수 있습니다")
-        
-        if device == 'mobile':
-            # 모바일: 세로 배치
-            download_option = st.radio(
-                "다운로드 형식",
-                options=["입력값만", "입력값 + 점수", "전체 데이터"],
-                index=1
-            )
+        with st.container():
+            st.markdown(f"""
+            <div style="
+                background-color: {color}22;
+                border-left: 5px solid {color};
+                padding: 1rem;
+                border-radius: 5px;
+                margin-bottom: 1rem;
+            ">
+                <h3 style="color: {color}; margin: 0;">
+                    {icon} {row['센터명']} - {risk_level}
+                </h3>
+            </div>
+            """, unsafe_allow_html=True)
             
-            file_format = st.radio(
-                "파일 형식",
-                options=["Excel (.xlsx)", "CSV (.csv)"],
-                index=0
-            )
-        else:
-            # 데스크톱/태블릿: 가로 배치
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             
             with col1:
-                download_option = st.radio(
-                    "다운로드 형식 선택",
-                    options=["입력값만", "입력값 + 점수", "전체 데이터"],
-                    index=1
-                )
+                st.metric("현재 점수", f"{row['총점']:.1f}")
             
             with col2:
-                file_format = st.radio(
-                    "파일 형식",
-                    options=["Excel (.xlsx)", "CSV (.csv)"],
-                    index=0
-                )
-        
-        # 다운로드 로직 (기존과 동일)
-        if download_option == "입력값만":
-            download_cols = [
-                '센터명', '평가월',
-                '안전점검실점검율', '중점고객안전점검율', '사용계약율',
-                '상담응대율', '상담기여도', '고객서비스만족도',
-                '민원대응적정성', '주의경고', '가점'
-            ]
-        elif download_option == "입력값 + 점수":
-            download_cols = [
-                '센터명', '평가월', '총점',
-                '안전점검실점검율', '안전점검_점수',
-                '중점고객안전점검율', '중점고객_점수',
-                '사용계약율', '사용계약_점수',
-                '상담응대율', '상담응대_점수',
-                '상담기여도', '상담기여_점수',
-                '고객서비스만족도', '만족도_점수',
-                '민원대응적정성', '주의경고', '가점'
-            ]
-        else:
-            download_cols = df_filtered.columns.tolist()
-        
-        download_cols = [col for col in download_cols if col in df_filtered.columns]
-        df_download = df_filtered[download_cols].copy()
-        
-        df_download['평가월'] = df_download['평가월'].dt.strftime('%Y-%m-%d')
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M')
-        
-        if selected_center == '전체' and selected_month_str == '전체':
-            filename_prefix = "전체_원본데이터"
-        elif selected_center == '전체':
-            filename_prefix = f"{selected_month_str.replace('년 ', '').replace('월', '')}_원본데이터"
-        elif selected_month_str == '전체':
-            filename_prefix = f"{selected_center}_원본데이터"
-        else:
-            filename_prefix = f"{selected_center}_{selected_month_str.replace('년 ', '').replace('월', '')}"
-        
-        if file_format == "Excel (.xlsx)":
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_download.to_excel(writer, index=False, sheet_name='원본데이터')
-            output.seek(0)
-            excel_data = output.getvalue()
+                st.metric("예측 점수", f"{row['예측점수']:.1f}")
             
-            st.download_button(
-                label="📥 Excel 파일 다운로드",
-                data=excel_data,
-                file_name=f"{filename_prefix}_{timestamp}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-        else:
-            csv_data = df_download.to_csv(index=False, encoding='utf-8-sig')
+            with col3:
+                gap = row['예측점수'] - 911
+                st.metric("목표 대비", f"{gap:+.1f}", delta_color="inverse")
             
-            st.download_button(
-                label="📥 CSV 파일 다운로드",
-                data=csv_data,
-                file_name=f"{filename_prefix}_{timestamp}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+            st.markdown("---")
+
+def show_data_analysis(df: pd.DataFrame):
+    """데이터 분석"""
+    st.subheader("📊 심층 데이터 분석")
+    
+    analysis_type = st.selectbox(
+        "분석 유형 선택",
+        ["상관관계 분석", "이상치 탐지", "점수 분포 분석"]
+    )
+    
+    if analysis_type == "상관관계 분석":
+        show_correlation_analysis(df)
+    elif analysis_type == "이상치 탐지":
+        detect_outliers(df)
+    elif analysis_type == "점수 분포 분석":
+        analyze_score_distribution(df)
+
+def show_raw_data_verification(df: pd.DataFrame):
+    """원본 데이터"""
+    st.subheader("📋 전체 데이터 조회")
+    
+    st.dataframe(
+        df,
+        use_container_width=True,
+        height=600
+    )
+    
+    excel_data = convert_df_to_excel(df)
+    
+    st.download_button(
+        label="💾 데이터 다운로드 (Excel)",
+        data=excel_data,
+        file_name=f"dashboard_data_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# ==================== 메인 함수 ====================
+
+def main():
+    """메인 함수 - 개선된 UI"""
+    
+    # 타이틀
+    st.markdown("""
+    <div class="main-header">
+        🏢 도시가스 고객센터 성과 대시보드
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 디바이스 타입 선택 (개발/테스트용)
+    with st.sidebar.expander("⚙️ 화면 설정"):
+        device = st.radio(
+            "디바이스 모드",
+            options=['desktop', 'tablet', 'mobile'],
+            index=0,
+            format_func=lambda x: {'desktop': '🖥️ 데스크톱', 'tablet': '📱 태블릿', 'mobile': '📱 모바일'}[x]
+        )
+        st.session_state['device_type'] = device
+        st.caption("실제 배포 시에는 자동 감지됩니다")
+    
+    # 세션 상태 초기화
+    if 'df' not in st.session_state:
+        with st.spinner("📊 데이터 로드 중..."):
+            df_github = load_latest_data_from_github()
+            st.session_state['df'] = df_github if df_github is not None else None
+    
+    # 사이드바: 데이터 관리
+    with st.sidebar:
+        st.header("📂 데이터 관리")
+        
+        # 현재 데이터 정보
+        if st.session_state['df'] is not None:
+            df = st.session_state['df']
+            
+            st.success("✅ 데이터 로드됨")
+            
+            st.info(f"""
+            📌 **현재 데이터**
+            - 총 행수: {len(df):,}
+            - 센터 수: {df['센터명'].nunique()}개
+            - 평가 기간: {df['평가월'].min().strftime('%Y-%m')} ~ {df['평가월'].max().strftime('%Y-%m')}
+            - 최종 업데이트: GitHub 최신 버전
+            """)
+        else:
+            st.warning("⚠️ 데이터가 없습니다.")
         
         st.divider()
-        st.markdown("**📋 다운로드 미리보기 (상위 10행)**")
-        st.dataframe(df_download.head(10), use_container_width=True)
         
-        st.caption(f"총 {len(df_download):,}행 × {len(df_download.columns)}열")
-
-def show_score_comparison_mobile(row):
-    """점수 비교 (모바일용)"""
-    st.markdown("### 🔵 핵심 지표")
+        # 새 데이터 업로드
+        st.subheader("📤 새 데이터 업로드")
+        
+        uploaded_file = st.file_uploader(
+            "엑셀 파일 선택 (xlsx)",
+            type=['xlsx'],
+            help="월별 평가 데이터가 포함된 엑셀 파일을 업로드하세요"
+        )
+        
+        if uploaded_file:
+            with st.spinner("📊 데이터 처리 중..."):
+                try:
+                    df_raw = load_cumulative_data(uploaded_file)
+                    is_valid, message = validate_cumulative_data(df_raw)
+                    
+                    if is_valid:
+                        st.success(f"✅ 데이터 검증 완료")
+                        df_scored = calculate_scores(df_raw)
+                        st.session_state['df'] = df_scored
+                        
+                        st.info(f"""
+                        📊 **처리 완료**
+                        - 총 {len(df_scored):,}행
+                        - {df_scored['센터명'].nunique()}개 센터
+                        - {df_scored['평가월'].nunique()}개월 데이터
+                        """)
+                        
+                        excel_data = convert_df_to_excel(df_scored)
+                        
+                        st.download_button(
+                            label="💾 처리된 데이터 다운로드",
+                            data=excel_data,
+                            file_name=f"latest_data_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            help="이 파일을 data/latest_data.xlsx로 저장 후 GitHub에 업로드하세요"
+                        )
+                        
+                        st.warning("""
+                        ⚠️ **다음 단계:**
+                        1. 위 버튼으로 파일 다운로드
+                        2. `data/latest_data.xlsx`로 저장
+                        3. GitHub에 커밋 & 푸시
+                        """)
+                    else:
+                        st.error("❌ 데이터 검증 실패")
+                        for msg in message:
+                            st.error(msg)
+                        
+                except Exception as e:
+                    st.error(f"❌ 오류 발생: {e}")
+                    import traceback
+                    with st.expander("🔍 상세 오류 (개발자용)"):
+                        st.code(traceback.format_exc())
+        
+        st.divider()
+        
+        # 필터 옵션
+        if st.session_state['df'] is not None:
+            df = st.session_state['df']
+            
+            st.subheader("🔍 필터")
+            
+            months = sorted(df['평가월'].dt.to_period('M').unique())
+            selected_months = st.multiselect(
+                "평가월 선택",
+                options=months,
+                default=months,
+                format_func=lambda x: x.strftime('%Y년 %m월')
+            )
+            
+            centers = sorted(df['센터명'].unique())
+            selected_centers = st.multiselect(
+                "센터 선택",
+                options=centers,
+                default=centers
+            )
+            
+            if selected_months and selected_centers:
+                df_filtered = df[
+                    (df['평가월'].dt.to_period('M').isin(selected_months)) &
+                    (df['센터명'].isin(selected_centers))
+                ]
+                st.session_state['df_filtered'] = df_filtered
+                st.caption(f"필터 결과: {len(df_filtered):,}행")
+            else:
+                st.session_state['df_filtered'] = df
+        
+        st.divider()
+        
+        with st.expander("📖 배점 규칙"):
+            st.markdown("""
+            **총점: 1000점**
+            
+            - 안전점검: 550점
+            - 중점고객: 100점
+            - 사용계약: 50점
+            - 상담응대: 100점
+            - 상담기여: 100점
+            - 만족도: 100점
+            
+            **목표: 911점 이상**
+            """)
     
-    st.markdown(f"""
-    **1️⃣ 안전점검실점검율**
-    - 입력값: `{row['안전점검실점검율']:.4f}` ({row['안전점검실점검율']*100:.2f}%)
-    - 계산 점수: **{row.get('안전점검_점수', 0):.1f}점** / 550점
-    """)
-    
-    st.markdown("---")
-    
-    st.markdown(f"""
-    **2️⃣ 중점고객안전점검율**
-    - 입력값: `{row['중점고객안전점검율']:.4f}` ({row['중점고객안전점검율']*100:.2f}%)
-    - 계산 점수: **{row.get('중점고객_점수', 0):.1f}점** / 100점
-    """)
-    
-    st.markdown("---")
-    
-    contract_rate = row['사용계약율']
-    if contract_rate >= 0.9:
-        contract_grade = "A등급 (90% 이상)"
-    elif contract_rate >= 0.8:
-        contract_grade = "B등급 (80~90% 미만)"
-    elif contract_rate >= 0.7:
-        contract_grade = "C등급 (70~80% 미만)"
+    # 메인 화면
+    if st.session_state['df'] is None:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            st.info("""
+            ### 👋 환영합니다!
+            
+            **시작하기:**
+            1. 왼쪽 사이드바에서 엑셀 파일 업로드
+            2. 처리된 데이터 다운로드
+            3. GitHub에 업로드하여 팀 공유
+            
+            **또는**
+            
+            `data/latest_data.xlsx` 파일이 있다면 자동으로 로드됩니다.
+            """)
     else:
-        contract_grade = "D등급 (70% 미만)"
-    
-    st.markdown(f"""
-    **3️⃣ 사용계약율 (등급제)**
-    - 입력값: `{contract_rate:.4f}` ({contract_rate*100:.2f}%)
-    - 등급: {contract_grade}
-    - 계산 점수: **{row.get('사용계약_점수', 0):.1f}점** / 50점
-    """)
-    
-    st.divider()
-    
-    st.markdown("### 🟢 상담 지표")
-    
-    st.markdown(f"""
-    **4️⃣ 상담응대율**
-    - 입력값: `{row['상담응대율']:.4f}` ({row['상담응대율']*100:.2f}%)
-    - 계산 점수: **{row.get('상담응대_점수', 0):.1f}점** / 100점
-    """)
-    
-    st.markdown("---")
-    
-    st.markdown(f"""
-    **5️⃣ 상담기여도**
-    - 입력값: `{row['상담기여도']:.4f}` ({row['상담기여도']*100:.2f}%)
-    - 계산 점수: **{row.get('상담기여_점수', 0):.1f}점** / 100점
-    """)
-    
-    st.markdown("---")
-    
-    st.markdown(f"""
-    **6️⃣ 고객서비스만족도**
-    - 입력값: `{row['고객서비스만족도']:.0f}점`
-    - 계산 점수: **{row.get('만족도_점수', 0):.1f}점** / 100점
-    """)
-    
-    st.divider()
-    
-    st.markdown("### 🟡 조정 항목")
-    
-    status = "✅ 없음" if row['민원대응적정성'] == 0 else f"⚠️ {row['민원대응적정성']:.0f}점"
-    st.markdown(f"**민원대응**: {status}")
-    
-    status = "✅ 없음" if row['주의경고'] == 0 else f"⚠️ {row['주의경고']:.0f}점"
-    st.markdown(f"**주의/경고**: {status}")
-    
-    status = "➖ 없음" if row['가점'] == 0 else f"✨ +{row['가점']:.0f}점"
-    st.markdown(f"**가점**: {status}")
-    
-    st.divider()
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.metric("📊 총점", f"{row['총점']:.1f}점", f"{row['총점']-911:.1f}점")
-    
-    with col2:
-        status_emoji = "✅" if row.get('목표달성여부', False) else "❌"
-        status_text = "달성" if row.get('목표달성여부', False) else "미달성"
-        st.metric("🎯 목표", status_text, status_emoji)
+        df = st.session_state.get('df_filtered', st.session_state['df'])
+        
+        # 🎨 사이드바 네비게이션
+        selected_page = sidebar_navigation()
+        
+        # 현재 페이지 헤더
+        st.markdown(f'<div class="page-title">{selected_page}</div>', unsafe_allow_html=True)
+        
+        # 선택된 페이지 표시
+        if selected_page == "📊 전체 현황":
+            show_overview(df)
+        elif selected_page == "📈 월별 추이":
+            show_trend_analysis(df)
+        elif selected_page == "🎯 센터별 상세":
+            show_center_detail(df)
+        elif selected_page == "⚠️ 위험 관리":
+            show_risk_management(df)
+        elif selected_page == "📊 데이터 분석":
+            show_data_analysis(df)
+        elif selected_page == "📋 원본 데이터":
+            show_raw_data_verification(df)
 
-def show_score_comparison_desktop(row):
-    """점수 비교 (데스크톱용)"""
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("### 🔵 핵심 지표")
-        
-        st.markdown(f"""
-        **1️⃣ 안전점검실점검율**
-        - 입력값: `{row['안전점검실점검율']:.4f}` ({row['안전점검실점검율']*100:.2f}%)
-        - 계산 점수: **{row.get('안전점검_점수', 0):.1f}점** / 550점
-        """)
-        
-        st.markdown("---")
-        
-        st.markdown(f"""
-        **2️⃣ 중점고객안전점검율**
-        - 입력값: `{row['중점고객안전점검율']:.4f}` ({row['중점고객안전점검율']*100:.2f}%)
-        - 계산 점수: **{row.get('중점고객_점수', 0):.1f}점** / 100점
-        """)
-        
-        st.markdown("---")
-        
-        contract_rate = row['사용계약율']
-        if contract_rate >= 0.9:
-            contract_grade = "A등급 (90% 이상)"
-        elif contract_rate >= 0.8:
-            contract_grade = "B등급 (80~90% 미만)"
-        elif contract_rate >= 0.7:
-            contract_grade = "C등급 (70~80% 미만)"
-        else:
-            contract_grade = "D등급 (70% 미만)"
-        
-        st.markdown(f"""
-        **3️⃣ 사용계약율 (등급제)**
-        - 입력값: `{contract_rate:.4f}` ({contract_rate*100:.2f}%)
-        - 등급: {contract_grade}
-        - 계산 점수: **{row.get('사용계약_점수', 0):.1f}점** / 50점
-        """)
-    
-    with col2:
-        st.markdown("### 🟢 상담 지표")
-        
-        st.markdown(f"""
-        **4️⃣ 상담응대율**
-        - 입력값: `{row['상담응대율']:.4f}` ({row['상담응대율']*100:.2f}%)
-        - 계산 점수: **{row.get('상담응대_점수', 0):.1f}점** / 100점
-        """)
-        
-        st.markdown("---")
-        
-        st.markdown(f"""
-        **5️⃣ 상담기여도**
-        - 입력값: `{row['상담기여도']:.4f}` ({row['상담기여도']*100:.2f}%)
-        - 계산 점수: **{row.get('상담기여_점수', 0):.1f}점** / 100점
-        """)
-        
-        st.markdown("---")
-        
-        st.markdown(f"""
-        **6️⃣ 고객서비스만족도**
-        - 입력값: `{row['고객서비스만족도']:.0f}점`
-        - 계산 점수: **{row.get('만족도_점수', 0):.1f}점** / 100점
-        """)
-    
-    with col3:
-        st.markdown("### 🟡 조정 항목")
-        
-        status = "✅ 없음" if row['민원대응적정성'] == 0 else f"⚠️ {row['민원대응적정성']:.0f}점"
-        st.markdown(f"""
-        **7️⃣ 민원대응적정성 (감점)**
-        - 상태: {status}
-        """)
-        
-        st.markdown("---")
-        
-        status = "✅ 없음" if row['주의경고'] == 0 else f"⚠️ {row['주의경고']:.0f}점"
-        st.markdown(f"""
-        **8️⃣ 주의/경고 (감점)**
-        - 상태: {status}
-        """)
-        
-        st.markdown("---")
-        
-        status = "➖ 없음" if row['가점'] == 0 else f"✨ +{row['가점']:.0f}점"
-        st.markdown(f"""
-        **9️⃣ 가점**
-        - 상태: {status}
-        """)
-    
-    st.divider()
-    
-    col_total1, col_total2, col_total3 = st.columns(3)
-    
-    with col_total1:
-        st.metric("📊 총점", f"{row['총점']:.1f}점", f"{row['총점']-911:.1f}점")
-    
-    with col_total2:
-        status_emoji = "✅" if row.get('목표달성여부', False) else "❌"
-        status_text = "달성" if row.get('목표달성여부', False) else "미달성"
-        st.metric("🎯 목표 달성", status_text, status_emoji)
-    
-    with col_total3:
-        achievement = row['총점'] / 911 * 100
-        st.metric("📈 달성률", f"{achievement:.1f}%")
 
 if __name__ == "__main__":
     main()
