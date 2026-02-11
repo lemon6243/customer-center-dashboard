@@ -1,45 +1,31 @@
 [server]
-# WebSocket 연결 설정
+# WebSocket 압축 비활성화 (안정성 향상)
 enableWebsocketCompression = false
-websocketBackoffMaxTime = 30
+
+# 최대 업로드 크기 (MB)
 maxUploadSize = 200
 
-# 세션 타임아웃 연장 (초 단위, 8시간)
-sessionTimeout = 28800
-
-# 서버 포트 (기본값)
-port = 8501
-
-# CORS 설정
+# CORS / XSRF 설정
 enableCORS = false
 enableXsrfProtection = true
 
-[browser]
-# 자동 수집 비활성화
-gatherUsageStats = false
+# ⚠️ 아래 항목들은 Community Cloud에서 무시되거나 문제 유발 가능 → 삭제 권장
+# port = 8501              ← Community Cloud가 자동 할당, 삭제
+# sessionTimeout = 28800   ← Community Cloud에서 무시됨, 삭제
 
-# 서버 연결 끊김 시 재연결 시도
-serverAddress = "localhost"
+[browser]
+gatherUsageStats = false
+# serverAddress = "localhost"  ← Community Cloud에서는 의미 없음, 삭제
 
 [runner]
-# 스크립트 감시 타입
-scriptWatcherType = "auto"
-
-# 빠른 재실행
 fastReruns = true
-
-# 매직 활성화
 magicEnabled = true
 
 [client]
-# 툴바 모드
 toolbarMode = "auto"
-
-# 사이드바 상태
 showErrorDetails = true
 
 [theme]
-# 기본 테마 (옵션)
 primaryColor = "#667eea"
 backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F0F2F6"

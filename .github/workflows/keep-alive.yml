@@ -1,0 +1,25 @@
+name: Keep Streamlit App Alive
+
+on:
+  schedule:
+    # 10시간마다 실행 (12시간 잠자기 임계값보다 짧게)
+    - cron: '0 */10 * * *'
+  workflow_dispatch:  # 수동 실행도 가능
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create empty commit and push
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "GitHub Actions"
+          git commit --allow-empty -m "chore: keep alive [skip ci]"
+          git push
