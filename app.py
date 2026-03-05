@@ -856,7 +856,7 @@ def show_overview(df: pd.DataFrame):
         
         st.plotly_chart(fig, use_container_width=True)
         
-        with st.expander("📋 상세 점수표 보기 (예측 점수 포함)"):
+        with st.expander("📋 상세 점수표 보기 (예측 점수 포함)", expanded=True):
             display_cols = ['순위', '센터명', '총점', '예측점수', '목표대비', 
                            '안전점검_점수', '중점고객_점수', '사용계약_점수',
                            '상담응대_점수', '상담기여_점수', '만족도_점수']
