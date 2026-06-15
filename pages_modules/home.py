@@ -141,24 +141,31 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     st.markdown("")
 
-    # ==================== 3. 랭킹 (Top / Bottom / 변화) ====================
+       # ==================== 3. 센터 랭킹 ====================
     st.markdown("### 🏆 센터 랭킹")
 
-    # 토글: 점수 순 / 변화량 순
-    rank_mode = st.radio(
-        "랭킹 기준",
-        ["점수 순위", "전월 대비 변화", "둘 다 보기"],
-        index=2,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="home_rank_mode",
-    )
+    # ----- 3-1) 점수 순위 (Top 5 / Bottom 5) -----
+    ranking = get_ranking_data(df_latest, n=5, mode="score")
 
-    if rank_mode in ("점수 순위", "둘 다 보기"):
-        col1, col2 = st.columns(2) if device_type != "mobile" else (st.container(), st.container())
-
-        ranking = get_ranking_data(df_latest, n=5, mode="score")
-
+    if device_type == "mobile":
+        ranking_list(
+            ranking.get("top", pd.DataFrame()),
+            title="🥇 Top 5 우수 센터",
+            value_col="총점",
+            icon="🥇",
+            use_score_color=True,
+        )
+        st.markdown("")
+        ranking_list(
+            ranking.get("bottom", pd.DataFrame()),
+            title="🔻 Bottom 5 관리 필요 센터",
+            value_col="총점",
+            ascending=True,
+            icon="🔻",
+            use_score_color=True,
+        )
+    else:
+        col1, col2 = st.columns(2)
         with col1:
             ranking_list(
                 ranking.get("top", pd.DataFrame()),
@@ -177,31 +184,49 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
                 use_score_color=True,
             )
 
-    if rank_mode in ("전월 대비 변화", "둘 다 보기"):
-        if df_prev is not None and not df_prev.empty:
+    # ----- 3-2) 전월 대비 변화 (상승 / 하락) -----
+    st.markdown("")
+
+    if df_prev is not None and not df_prev.empty:
+        st.markdown(f"##### 📊 전월 대비 변화 (vs {prev_month})")
+
+        change_rank = get_change_ranking(df, n=5)
+
+        if device_type == "mobile":
+            change_ranking_list(
+                change_rank.get("rising", pd.DataFrame()),
+                title="📈 상승 Top 5",
+                icon="📈",
+                ascending=False,
+            )
             st.markdown("")
-            col3, col4 = st.columns(2) if device_type != "mobile" else (st.container(), st.container())
-
-            change_rank = get_change_ranking(df, n=5)
-
+            change_ranking_list(
+                change_rank.get("falling", pd.DataFrame()),
+                title="📉 하락 Top 5",
+                icon="📉",
+                ascending=True,
+            )
+        else:
+            col3, col4 = st.columns(2)
             with col3:
                 change_ranking_list(
                     change_rank.get("rising", pd.DataFrame()),
-                    title=f"📈 상승 Top 5 (vs {prev_month})",
+                    title="📈 상승 Top 5",
                     icon="📈",
                     ascending=False,
                 )
             with col4:
                 change_ranking_list(
                     change_rank.get("falling", pd.DataFrame()),
-                    title=f"📉 하락 Top 5 (vs {prev_month})",
+                    title="📉 하락 Top 5",
                     icon="📉",
                     ascending=True,
                 )
-        else:
-            st.info("📅 전월 데이터가 없어 변화 랭킹을 표시할 수 없습니다.")
+    else:
+        st.info("📅 전월 데이터가 없어 변화 랭킹을 표시할 수 없습니다.")
 
     st.markdown("")
+
 
     # ==================== 4. 분포 + 추이 차트 ====================
     st.markdown("### 📈 분포 및 추이")
