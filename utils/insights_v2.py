@@ -482,6 +482,8 @@ def get_half_outlook(
     """
     전 센터 반기 전망 DataFrame
     
+    ⭐ 최신월에 데이터가 있는 센터만 포함 (통합 전 분리 센터 자동 제외)
+    
     Returns: DataFrame with columns:
         센터명, 현재점수, 낙관전망, 현실전망, 작년참고, 목표차이, 안전도, 통합여부
     """
@@ -490,9 +492,15 @@ def get_half_outlook(
     if current_month is None:
         return pd.DataFrame()
     
-    centers = df['센터명'].dropna().unique()
+    # ⭐ 최신월에 데이터가 있는 센터만 추출 (4월 이후 사라진 퇴계원/별내 등 제외)
+    df_latest = _filter_by_month(df, current_month)
+    if df_latest.empty:
+        return pd.DataFrame()
+    
+    active_centers = df_latest['센터명'].dropna().unique()
+    
     rows = []
-    for center in centers:
+    for center in active_centers:
         result = predict_half_total(df, center, current_month, df_last_year)
         if result is None:
             continue
