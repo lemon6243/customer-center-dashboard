@@ -18,30 +18,20 @@ from utils.insights import (
 )
 from components.big_metric_card import score_big_card, count_big_card, big_metric_card
 from components.ranking_list import ranking_list, change_ranking_list
-from components.quick_nav import quick_nav_buttons, role_selector
+from components.quick_nav import quick_nav_buttons
 
 
 # ==================== 역할별 빠른 이동 메뉴 ====================
 
-QUICK_NAV_BY_ROLE = {
-    "본사 담당자": [
-        {"icon": "📊", "label": "전체 현황", "page_key": "📊 전체 현황", "desc": "24개 센터 한눈에"},
-        {"icon": "📈", "label": "월별 추이", "page_key": "📈 월별 추이", "desc": "5개월 점수 변화"},
-        {"icon": "🌡️", "label": "KPI 히트맵", "page_key": "🌡️ KPI 히트맵", "desc": "센터×KPI 매트릭스"},
-        {"icon": "⚠️", "label": "위험 관리", "page_key": "⚠️ 위험 관리", "desc": "주의/위험 센터"},
-    ],
-    "센터장/팀장": [
-        {"icon": "🎯", "label": "센터별 상세", "page_key": "🎯 센터별 상세", "desc": "우리 센터 상세 진단"},
-        {"icon": "📈", "label": "월별 추이", "page_key": "📈 월별 추이", "desc": "최근 5개월 흐름"},
-        {"icon": "🌡️", "label": "KPI 히트맵", "page_key": "🌡️ KPI 히트맵", "desc": "강점·약점 한눈에"},
-        {"icon": "📊", "label": "전체 현황", "page_key": "📊 전체 현황", "desc": "타 센터와 비교"},
-    ],
-    "평가 담당자": [
-        {"icon": "⚠️", "label": "위험 관리", "page_key": "⚠️ 위험 관리", "desc": "긴급 관리 대상"},
-        {"icon": "📊", "label": "데이터 분석", "page_key": "📊 데이터 분석", "desc": "상관관계·이상치"},
-        {"icon": "📋", "label": "원본 데이터", "page_key": "📋 원본 데이터", "desc": "전체 데이터 확인"},
-        {"icon": "🌡️", "label": "KPI 히트맵", "page_key": "🌡️ KPI 히트맵", "desc": "전체 평가 매트릭스"},
-    ],
+QUICK_NAV_ITEMS = [
+    {"icon": "📊", "label": "전체 현황", "page_key": "📊 전체 현황", "desc": "24개 센터 한눈에"},
+    {"icon": "📈", "label": "월별 추이", "page_key": "📈 월별 추이", "desc": "5개월 점수 변화"},
+    {"icon": "🎯", "label": "센터별 상세", "page_key": "🎯 센터별 상세", "desc": "센터별 진단"},
+    {"icon": "⚠️", "label": "위험 관리", "page_key": "⚠️ 위험 관리", "desc": "주의/위험 센터"},
+    {"icon": "🌡️", "label": "KPI 히트맵", "page_key": "🌡️ KPI 히트맵", "desc": "센터×KPI 매트릭스"},
+    {"icon": "📊", "label": "데이터 분석", "page_key": "📊 데이터 분석", "desc": "상관관계·이상치"},
+    {"icon": "📋", "label": "원본 데이터", "page_key": "📋 원본 데이터", "desc": "전체 데이터 표"},
+]
 }
 
 
