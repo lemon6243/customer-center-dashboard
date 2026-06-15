@@ -3,11 +3,12 @@
 🌡️ KPI 히트맵 모듈
 파일명: kpi_heatmap.py
 
-app.py에 추가할 독립 모듈입니다.
 3가지 히트맵 뷰를 제공합니다:
   Tab 1 - 센터 × KPI 달성률  (최신월 기준)
   Tab 2 - 센터 × 월별 총점   (전체 월 추이)
   Tab 3 - 월별 KPI 평균       (전체 센터 평균)
+
+🎨 v2.0 - 디자인 시스템 통합 (utils/styles.py 기준)
 ============================================================
 """
 
@@ -16,6 +17,13 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
+
+from utils.styles import (
+    Colors,
+    ScoreThresholds,
+    PLOTLY_LAYOUT,
+    HEATMAP_COLORSCALE as STYLES_HEATMAP_COLORSCALE,
+)
 
 
 # ──────────────────────────────────────────────
@@ -27,7 +35,7 @@ KPI_CONFIG = {
         'score_col':  '안전점검_점수',
         'rate_col':   '안전점검_달성률',
         'max_score':  550,
-        'weight_pct': 55.0,   # 전체 배점에서 차지하는 비중(%)
+        'weight_pct': 55.0,
         'icon':       '🔵',
     },
     '중점고객': {
@@ -67,26 +75,29 @@ KPI_CONFIG = {
     },
 }
 
-# 목표 점수
-TARGET_SCORE = 911
+# 목표 점수 (styles.py 기준)
+TARGET_SCORE = ScoreThresholds.TARGET
 
 # 달성률 색상 기준 (%)
 GRADE_THRESHOLDS = {
-    'S': 95,   # 🏆 최우수
-    'A': 90,   # 🥇 우수
-    'B': 85,   # 🥈 양호
-    'C': 75,   # 🥉 주의
-    'D': 0,    # ⛔ 위험
+    'S': 95,
+    'A': 90,
+    'B': 85,
+    'C': 75,
+    'D': 0,
 }
 
-# Plotly 커스텀 색상 스케일 (빨강 → 노랑 → 초록)
-HEATMAP_COLORSCALE = [
-    [0.00, '#dc3545'],   # 0%   진한 빨강
-    [0.55, '#fd7e14'],   # 55%  주황
-    [0.70, '#ffc107'],   # 70%  노랑
-    [0.85, '#20c997'],   # 85%  청록
-    [1.00, '#198754'],   # 100% 진한 초록
-]
+# 🎨 디자인 시스템 색상 사용
+HEATMAP_COLORSCALE = STYLES_HEATMAP_COLORSCALE
+
+# 등급별 색상 (Colors 상수 활용)
+GRADE_COLOR_MAP = {
+    'S': Colors.SUCCESS,    # 진초록
+    'A': "#84cc16",         # 연두 (styles.py의 중간색)
+    'B': Colors.WARNING,    # 노랑
+    'C': Colors.ALERT,      # 주황
+    'D': Colors.DANGER,     # 빨강
+}
 
 
 # ──────────────────────────────────────────────
@@ -117,8 +128,8 @@ def _get_grade(rate: float) -> str:
 
 
 def _grade_color(grade: str) -> str:
-    colors = {'S': '#198754', 'A': '#20c997', 'B': '#ffc107', 'C': '#fd7e14', 'D': '#dc3545'}
-    return colors.get(grade, '#6c757d')
+    """등급 → 색상 (디자인 시스템 기준)"""
+    return GRADE_COLOR_MAP.get(grade, Colors.REFERENCE)
 
 
 def _grade_badge(grade: str) -> str:
@@ -132,6 +143,17 @@ def _grade_badge(grade: str) -> str:
     return badges.get(grade, grade)
 
 
+def _hex_to_rgba(hex_color: str, alpha: float = 0.2) -> str:
+    """hex 색상 → rgba 변환 (Plotly·CSS 안전)"""
+    hex_color = hex_color.lstrip('#')
+    if len(hex_color) == 3:
+        hex_color = ''.join(c * 2 for c in hex_color)
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 # ──────────────────────────────────────────────
 # Tab 1 : 센터 × KPI 달성률 히트맵
 # ──────────────────────────────────────────────
@@ -141,7 +163,6 @@ def _show_center_kpi_heatmap(df: pd.DataFrame, selected_month=None):
 
     df = _ensure_rate_cols(df)
 
-    # 월 선택
     all_months = sorted(df['평가월'].unique())
     month_labels = [m.strftime('%Y년 %m월') for m in all_months]
 
@@ -160,7 +181,6 @@ def _show_center_kpi_heatmap(df: pd.DataFrame, selected_month=None):
         )
     chosen_month = all_months[month_labels.index(chosen_label)]
 
-    # 정렬 기준
     with col_info:
         sort_by = st.selectbox(
             "🔽 센터 정렬 기준",
@@ -174,7 +194,6 @@ def _show_center_kpi_heatmap(df: pd.DataFrame, selected_month=None):
         st.warning("해당 월의 데이터가 없습니다.")
         return
 
-    # 정렬
     if sort_by == '총점 높은 순':
         df_month = df_month.sort_values('총점', ascending=False)
     elif sort_by == '총점 낮은 순':
@@ -185,13 +204,9 @@ def _show_center_kpi_heatmap(df: pd.DataFrame, selected_month=None):
     centers = df_month['센터명'].tolist()
     kpi_names = list(KPI_CONFIG.keys())
 
-    # 달성률 행렬 구성
-    z_vals = []      # 달성률 (색상용)
-    text_vals = []   # 셀 내 텍스트
-
+    z_vals, text_vals = [], []
     for _, row in df_month.iterrows():
-        z_row = []
-        t_row = []
+        z_row, t_row = [], []
         for kpi in kpi_names:
             cfg = KPI_CONFIG[kpi]
             rate = row.get(cfg['rate_col'], 0)
@@ -203,14 +218,13 @@ def _show_center_kpi_heatmap(df: pd.DataFrame, selected_month=None):
         z_vals.append(z_row)
         text_vals.append(t_row)
 
-    # ── Plotly Heatmap ──
     fig = go.Figure(data=go.Heatmap(
         z=z_vals,
         x=[f"{cfg['icon']} {k}<br>({cfg['max_score']}점)" for k, cfg in KPI_CONFIG.items()],
         y=centers,
         text=text_vals,
         texttemplate="%{text}",
-        textfont={"size": 11, "color": "black"},
+        textfont={"size": 11, "color": Colors.TEXT_MAIN},
         colorscale=HEATMAP_COLORSCALE,
         zmin=0,
         zmax=100,
@@ -227,22 +241,20 @@ def _show_center_kpi_heatmap(df: pd.DataFrame, selected_month=None):
         ),
     ))
 
-    # 목표 달성선 (총점 기준 수직선 대신 배경 강조)
     n_centers = len(centers)
     chart_height = max(500, n_centers * 38 + 120)
 
     fig.update_layout(
         title=dict(
             text=f"📊 센터 × KPI 달성률 히트맵 ({chosen_label})",
-            font=dict(size=18, color='#333'),
+            font=dict(size=18, color=Colors.TEXT_MAIN),
             x=0.5,
         ),
         xaxis=dict(side='top', tickfont=dict(size=12)),
         yaxis=dict(autorange='reversed', tickfont=dict(size=11)),
         height=chart_height,
         margin=dict(l=120, r=80, t=100, b=40),
-        plot_bgcolor='white',
-        paper_bgcolor='white',
+        **PLOTLY_LAYOUT,
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -297,7 +309,6 @@ def _show_monthly_score_heatmap(df: pd.DataFrame):
     all_months_raw = sorted(df['평가월'].unique())
     month_labels = [m.strftime('%m월') for m in all_months_raw]
 
-    # 컨트롤 바
     col_a, col_b = st.columns([2, 1])
     with col_a:
         view_mode = st.radio(
@@ -313,7 +324,6 @@ def _show_monthly_score_heatmap(df: pd.DataFrame):
             key="heatmap_tab2_sort"
         )
 
-    # 피벗 테이블
     pivot = df.pivot_table(
         index='센터명',
         columns='평가월',
@@ -322,7 +332,6 @@ def _show_monthly_score_heatmap(df: pd.DataFrame):
     )
     pivot.columns = [c.strftime('%m월') for c in pivot.columns]
 
-    # 정렬
     latest_col = month_labels[-1]
     if sort_by2 == '최신월 총점 높은 순' and latest_col in pivot.columns:
         pivot = pivot.sort_values(latest_col, ascending=False)
@@ -336,20 +345,17 @@ def _show_monthly_score_heatmap(df: pd.DataFrame):
 
     if view_mode == "달성률 (%)":
         z_data = (pivot.values / TARGET_SCORE * 100).round(1)
-        colorscale = HEATMAP_COLORSCALE
         zmin, zmax = 80, 110
         colorbar_title = "달성률(%)"
         fmt = ".1f"
         unit = "%"
     else:
         z_data = pivot.values.round(1)
-        colorscale = HEATMAP_COLORSCALE
         zmin, zmax = 800, 1000
         colorbar_title = "총점(점)"
         fmt = ".0f"
         unit = "점"
 
-    # 텍스트
     text_data = []
     for row_vals in z_data:
         text_row = []
@@ -366,8 +372,8 @@ def _show_monthly_score_heatmap(df: pd.DataFrame):
         y=centers,
         text=text_data,
         texttemplate="%{text}",
-        textfont={"size": 11, "color": "black"},
-        colorscale=colorscale,
+        textfont={"size": 11, "color": Colors.TEXT_MAIN},
+        colorscale=HEATMAP_COLORSCALE,
         zmin=zmin,
         zmax=zmax,
         colorbar=dict(title=colorbar_title, len=0.8),
@@ -377,32 +383,30 @@ def _show_monthly_score_heatmap(df: pd.DataFrame):
         ),
     ))
 
-    # 목표 기준선 주석 추가 (컬럼 축에는 선 못 그리므로 배경 색상으로 구분)
     n_centers = len(centers)
     chart_height = max(500, n_centers * 35 + 140)
 
     fig.update_layout(
         title=dict(
             text=f"📈 센터별 월별 총점 히트맵 (목표: {TARGET_SCORE}점)",
-            font=dict(size=18, color='#333'),
+            font=dict(size=18, color=Colors.TEXT_MAIN),
             x=0.5,
         ),
         xaxis=dict(side='top', tickfont=dict(size=12)),
         yaxis=dict(autorange='reversed', tickfont=dict(size=11)),
         height=chart_height,
         margin=dict(l=120, r=80, t=100, b=40),
-        plot_bgcolor='white',
-        paper_bgcolor='white',
         annotations=[
             dict(
                 text=f"🎯 목표: {TARGET_SCORE}점 기준 색상 구분 | 🟢 초록=우수 / 🟡 노랑=주의 / 🔴 빨강=위험",
                 xref="paper", yref="paper",
                 x=0.5, y=-0.04,
                 showarrow=False,
-                font=dict(size=11, color='#666'),
+                font=dict(size=11, color=Colors.TEXT_SUB),
                 align='center',
             )
-        ]
+        ],
+        **PLOTLY_LAYOUT,
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -443,7 +447,6 @@ def _show_monthly_kpi_avg_heatmap(df: pd.DataFrame):
     available_rate_cols = [c for c in rate_cols if c in df.columns]
     available_kpi_names = [kpi_names[rate_cols.index(c)] for c in available_rate_cols]
 
-    # 월별 평균 피벗
     monthly_avg = df.groupby('평가월')[available_rate_cols].mean().round(1)
     monthly_avg.index = monthly_avg.index.strftime('%m월')
     monthly_avg.columns = available_kpi_names
@@ -463,7 +466,7 @@ def _show_monthly_kpi_avg_heatmap(df: pd.DataFrame):
         y=months_order,
         text=text_vals,
         texttemplate="%{text}",
-        textfont={"size": 12, "color": "black"},
+        textfont={"size": 12, "color": Colors.TEXT_MAIN},
         colorscale=HEATMAP_COLORSCALE,
         zmin=0,
         zmax=100,
@@ -482,15 +485,14 @@ def _show_monthly_kpi_avg_heatmap(df: pd.DataFrame):
     fig.update_layout(
         title=dict(
             text="📅 월별 KPI 평균 달성률 히트맵 (전체 센터 평균)",
-            font=dict(size=18, color='#333'),
+            font=dict(size=18, color=Colors.TEXT_MAIN),
             x=0.5,
         ),
         xaxis=dict(side='top', tickfont=dict(size=13)),
         yaxis=dict(autorange='reversed', tickfont=dict(size=12)),
         height=max(350, len(months_order) * 60 + 160),
         margin=dict(l=80, r=80, t=100, b=80),
-        plot_bgcolor='white',
-        paper_bgcolor='white',
+        **PLOTLY_LAYOUT,
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -509,7 +511,8 @@ def _show_monthly_kpi_avg_heatmap(df: pd.DataFrame):
 
     if selected_kpis:
         fig2 = go.Figure()
-        colors_line = px.colors.qualitative.Set2
+        # 디자인 시스템의 colorway 사용
+        line_colors = PLOTLY_LAYOUT.get('colorway', [Colors.PRIMARY])
 
         for i, kpi in enumerate(selected_kpis):
             cfg = KPI_CONFIG[kpi]
@@ -521,28 +524,28 @@ def _show_monthly_kpi_avg_heatmap(df: pd.DataFrame):
                     y=trend[cfg['rate_col']].round(1),
                     mode='lines+markers',
                     name=f"{cfg['icon']} {kpi}",
-                    line=dict(color=colors_line[i % len(colors_line)], width=2.5),
+                    line=dict(color=line_colors[i % len(line_colors)], width=2.5),
                     marker=dict(size=8),
                     hovertemplate=f"<b>{kpi}</b><br>%{{x}} | 평균 %{{y:.1f}}%<extra></extra>"
                 ))
 
+        # 등급 기준선 (디자인 시스템 색상)
         fig2.add_hline(
-            y=85, line_dash="dash", line_color="#20c997", line_width=1.5,
+            y=85, line_dash="dash", line_color=Colors.WARNING, line_width=1.5,
             annotation_text="B등급 기준 (85%)", annotation_position="right"
         )
         fig2.add_hline(
-            y=95, line_dash="dot", line_color="#198754", line_width=1.5,
+            y=95, line_dash="dot", line_color=Colors.SUCCESS, line_width=1.5,
             annotation_text="S등급 기준 (95%)", annotation_position="right"
         )
 
         fig2.update_layout(
             height=400,
-            yaxis=dict(title="달성률 (%)", range=[40, 105]),
-            xaxis=dict(title="평가월"),
+            yaxis=dict(title="달성률 (%)", range=[40, 105], gridcolor=Colors.BORDER),
+            xaxis=dict(title="평가월", gridcolor=Colors.BORDER),
             hovermode='x unified',
             legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
-            plot_bgcolor='white',
-            paper_bgcolor='white',
+            **PLOTLY_LAYOUT,
         )
         st.plotly_chart(fig2, use_container_width=True)
 
@@ -583,36 +586,26 @@ def _show_monthly_kpi_avg_heatmap(df: pd.DataFrame):
 
 
 # ──────────────────────────────────────────────
-# 메인 진입점 (app.py에서 호출)
+# 메인 진입점
 # ──────────────────────────────────────────────
 
 def show_kpi_heatmap(df: pd.DataFrame):
     """
     🌡️ KPI 히트맵 메인 함수
     app.py의 메인 라우터에서 호출합니다.
-
-    사용법:
-        from kpi_heatmap import show_kpi_heatmap
-        # main() 함수의 페이지 라우팅 부분에 추가:
-        elif selected_page == "🌡️ KPI 히트맵":
-            show_kpi_heatmap(df)
     """
     try:
-        # ── 헤더 ──
-        st.markdown("""
-        <div style="
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 1.2rem 1.5rem;
-            border-radius: 12px;
-            color: white;
-            margin-bottom: 1.5rem;
-        ">
-            <h2 style="margin:0; font-size:1.6rem;">🌡️ KPI 성과 히트맵</h2>
-            <p style="margin:0.3rem 0 0; opacity:0.88; font-size:0.95rem;">
-                센터별·KPI별 달성률을 색상으로 한눈에 파악합니다
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        # ── 헤더 (디자인 시스템 파랑 톤) ──
+        header_html = (
+            f'<div style="background:{Colors.GRADIENT_PRIMARY};'
+            f'padding:1.2rem 1.5rem;border-radius:12px;color:white;'
+            f'margin-bottom:1.5rem;box-shadow:0 4px 12px rgba(37,99,235,0.15);">'
+            f'<h2 style="margin:0;font-size:1.6rem;">🌡️ KPI 성과 히트맵</h2>'
+            f'<p style="margin:0.3rem 0 0;opacity:0.88;font-size:0.95rem;">'
+            f'센터별·KPI별 달성률을 색상으로 한눈에 파악합니다</p>'
+            f'</div>'
+        )
+        st.markdown(header_html, unsafe_allow_html=True)
 
         # ── 필수 컬럼 검증 ──
         required = ['센터명', '평가월', '총점']
@@ -621,28 +614,29 @@ def show_kpi_heatmap(df: pd.DataFrame):
             st.error(f"❌ 필수 컬럼 누락: {missing}")
             return
 
-        # 달성률 컬럼 보완
         df = _ensure_rate_cols(df)
 
-        # ── 범례 카드 ──
+        # ── 범례 카드 (디자인 시스템 색상) ──
         with st.expander("🎨 색상 범례 보기", expanded=False):
             legend_cols = st.columns(5)
             legends = [
-                ("🏆 S등급", "95%~100%", "#198754"),
-                ("🥇 A등급", "90%~95%",  "#20c997"),
-                ("🥈 B등급", "85%~90%",  "#ffc107"),
-                ("🥉 C등급", "75%~85%",  "#fd7e14"),
-                ("⛔ D등급", "0%~75%",   "#dc3545"),
+                ("🏆 S등급", "95%~100%", GRADE_COLOR_MAP['S']),
+                ("🥇 A등급", "90%~95%",  GRADE_COLOR_MAP['A']),
+                ("🥈 B등급", "85%~90%",  GRADE_COLOR_MAP['B']),
+                ("🥉 C등급", "75%~85%",  GRADE_COLOR_MAP['C']),
+                ("⛔ D등급", "0%~75%",   GRADE_COLOR_MAP['D']),
             ]
             for col, (title, rng, color) in zip(legend_cols, legends):
-                col.markdown(
-                    f'<div style="background:{color}33; border-left:4px solid {color}; '
-                    f'padding:8px 10px; border-radius:6px; font-size:0.85rem;">'
-                    f'<b>{title}</b><br>{rng}</div>',
-                    unsafe_allow_html=True
+                bg = _hex_to_rgba(color, 0.15)
+                legend_html = (
+                    f'<div style="background:{bg};border-left:4px solid {color};'
+                    f'padding:8px 10px;border-radius:6px;font-size:0.85rem;'
+                    f'color:{Colors.TEXT_MAIN};">'
+                    f'<b>{title}</b><br>{rng}</div>'
                 )
+                col.markdown(legend_html, unsafe_allow_html=True)
 
-        st.markdown("")  # 여백
+        st.markdown("")
 
         # ── 탭 레이아웃 ──
         tab1, tab2, tab3 = st.tabs([
