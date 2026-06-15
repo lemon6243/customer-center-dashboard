@@ -1,12 +1,13 @@
 """
-자동 인사이트 생성 v2.3
+자동 인사이트 생성 v2.4
 - 911점 절대평가 기준 (반기별 총점, 상/하반기 평균 911점 합격)
 - 변동형 KPI 잔변동 무시 (MIN_CHANGE_PCT)
 - 안전점검 누적 진척도 검증 (관대화)
 - 911점 도달 가능 센터 시나리오
 - 반기 전망 (낙관/현실 두 시나리오)
 - 작년 동기 비교 (달성률 기준)
-- 페이스 미달 랭킹 (911점 도달 위험 센터)  ⭐ v2.3 신규
+- 페이스 미달 랭킹 (911점 도달 위험 센터)
+- 통합센터 작년 비교 자동 제외 (v2.4)  ⭐
 """
 
 from dataclasses import dataclass, field
@@ -38,8 +39,15 @@ NEAR_TARGET_HIGH = 910
 # 연속 하락 기준
 DROP_STREAK_THRESHOLD = 2
 
-# 통합 센터 (작년 비교 제외)
-MERGED_CENTERS = {'퇴계원/별내', '별내/퇴계원'}
+# ⭐ 통합 센터 (작년 비교 제외)
+# - 금곡/경기동부, 덕소/양평: 2025년 4월부터 통합
+# - 퇴계원/별내: 2026년 4월부터 통합
+# - 작년 상반기(1~3월)에는 모두 분리되어 있었으므로 직접 비교 불가
+MERGED_CENTERS = {
+    '퇴계원/별내', '별내/퇴계원',
+    '금곡/경기동부', '경기동부/금곡',
+    '덕소/양평', '양평/덕소',
+}
 
 # 작년 KPI 만점 (구조 변경 대응)
 LAST_YEAR_KPI_MAX = {
@@ -135,6 +143,7 @@ def insight_overall_score(df: pd.DataFrame, latest, prev) -> Optional[Insight]:
     if df_latest.empty:
         return None
     avg = df_latest['총점'].mean()
+    n_centers = len(df_latest)
     
     delta_msg = ""
     if prev is not None:
@@ -158,7 +167,7 @@ def insight_overall_score(df: pd.DataFrame, latest, prev) -> Optional[Insight]:
     return Insight(
         icon='📊',
         title='전체 평균 점수',
-        message=f'전체 23개 센터 평균 **{avg:.1f}점**{delta_msg}',
+        message=f'전체 {n_centers}개 센터 평균 **{avg:.1f}점**{delta_msg}',
         category=category,
         priority=1,
         action=action,
@@ -620,11 +629,8 @@ def get_change_ranking(df: pd.DataFrame, n: int = 5) -> Dict:
         empty = pd.DataFrame()
         return {'up': empty, 'down': empty, 'rising': empty, 'falling': empty}
     
-    # ⭐ 컴포넌트가 기대하는 컬럼명으로 통일
     merged['변화량'] = merged['총점_현재'] - merged['총점_전월']
-    merged['총점'] = merged['총점_현재']  # current_col 기본값과 일치
-    
-    # 호환용 별칭
+    merged['총점'] = merged['총점_현재']
     merged['변화'] = merged['변화량']
     merged['점수변화'] = merged['변화량']
     merged['현재점수'] = merged['총점_현재']
@@ -671,23 +677,22 @@ def get_pace_lag_ranking(
         # 이미 911점 넘긴 센터 제외
         if result['current_score'] >= TARGET_TOTAL:
             continue
-        # 현실 전망도 911점 이상이면 제외 (안전 센터)
+        # 현실 전망도 911점 이상이면 제외
         if result['predicted_realistic'] >= TARGET_TOTAL:
             continue
         
         rows.append({
             '센터명': result['center'],
-            '총점': round(result['current_score'], 1),         # current_col 기본값
+            '총점': round(result['current_score'], 1),
             '예상점수': round(result['predicted_realistic'], 1),
-            '부족분': round(result['gap_to_target'], 1),       # 911 - 예상
-            '변화량': round(result['gap_to_target'], 1),       # 컴포넌트 호환용
+            '부족분': round(result['gap_to_target'], 1),
+            '변화량': round(result['gap_to_target'], 1),
         })
     
     if not rows:
         return pd.DataFrame()
     
     result_df = pd.DataFrame(rows)
-    # 부족분이 큰 순서 (911점에서 멀수록 위험)
     result_df = result_df.sort_values('부족분', ascending=False).head(n).reset_index(drop=True)
     
     return result_df
