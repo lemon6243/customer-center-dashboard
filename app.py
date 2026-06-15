@@ -18,14 +18,11 @@ from utils.helpers import clean_dataframe
 # 페이지 모듈
 from pages_modules import (
     home,
-    sidebar,
-    overview,
-    trend,
+    performance,        # ⭐ 신규
     center_detail,
     risk,
     heatmap,
-    analysis,
-    raw_data,
+    deep_analysis,      # ⭐ 신규
 )
 
 
@@ -102,13 +99,11 @@ def load_latest_data_from_github() -> Optional[pd.DataFrame]:
 
 PAGE_ROUTER = {
     "🏠 홈": home.show,
-    "📊 전체 현황":   overview.show,
-    "📈 월별 추이":   trend.show,
-    "🎯 센터별 상세": center_detail.show,
-    "⚠️ 위험 관리":   risk.show,
-    "🌡️ KPI 히트맵":  heatmap.show,
-    "📊 데이터 분석": analysis.show,
-    "📋 원본 데이터": raw_data.show,
+    "📊 성과 분석": performance.show,        # ⭐ 변경
+    "🎯 센터 진단": center_detail.show,       # ⭐ 변경 (메뉴명만)
+    "⚠️ 위험 관리": risk.show,
+    "🌡️ KPI 히트맵": heatmap.show,
+    "🔬 심화 분석": deep_analysis.show,       # ⭐ 변경
 }
 
 
