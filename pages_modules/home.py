@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 from utils.styles import Colors, ScoreThresholds, get_score_color, PLOTLY_LAYOUT
 from utils.helpers import safe_unique_centers
-from utils.insights import (
+from utils.insights_v2 import (
     get_all_insights,
     get_ranking_data,
     get_change_ranking,
