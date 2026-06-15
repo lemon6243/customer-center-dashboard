@@ -607,16 +607,32 @@ def get_change_ranking(df: pd.DataFrame, n: int = 5) -> Dict:
     """전월 대비 변화 랭킹"""
     months = pd.to_datetime(df['평가월'], errors='coerce').dropna().sort_values().unique()
     if len(months) < 2:
-        return {'up': pd.DataFrame(), 'down': pd.DataFrame()}
+        return {
+            'up': pd.DataFrame(), 'down': pd.DataFrame(),
+            'rising': pd.DataFrame(), 'falling': pd.DataFrame(),
+        }
     
     latest, prev = months[-1], months[-2]
-    df_l = _filter_by_month(df, latest)[['센터명', '총점']].rename(columns={'총점': '현재'})
-    df_p = _filter_by_month(df, prev)[['센터명', '총점']].rename(columns={'총점': '전월'})
+    df_l = _filter_by_month(df, latest)[['센터명', '총점']].rename(columns={'총점': '현재점수'})
+    df_p = _filter_by_month(df, prev)[['센터명', '총점']].rename(columns={'총점': '전월점수'})
     
     merged = df_l.merge(df_p, on='센터명', how='inner')
-    merged['변화'] = merged['현재'] - merged['전월']
+    if merged.empty:
+        return {
+            'up': pd.DataFrame(), 'down': pd.DataFrame(),
+            'rising': pd.DataFrame(), 'falling': pd.DataFrame(),
+        }
+    
+    merged['변화'] = merged['현재점수'] - merged['전월점수']
+    merged['점수변화'] = merged['변화']  # 호환용 별칭
+    
+    rising = merged.sort_values('변화', ascending=False).head(n).reset_index(drop=True)
+    falling = merged.sort_values('변화').head(n).reset_index(drop=True)
     
     return {
-        'up': merged.sort_values('변화', ascending=False).head(n).reset_index(drop=True),
-        'down': merged.sort_values('변화').head(n).reset_index(drop=True),
+        # 다양한 키 이름 모두 지원 (호환성)
+        'up': rising,
+        'down': falling,
+        'rising': rising,
+        'falling': falling,
     }
