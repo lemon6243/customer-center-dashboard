@@ -329,7 +329,7 @@ def _render_period_header(df: pd.DataFrame, latest_month: str):
 
 
 def _render_insights(insights, device_type: str):
-    """인사이트 박스 렌더링 (카테고리별 색상)"""
+    """인사이트 박스 렌더링 (카테고리별 색상 + 액션 가이드)"""
     category_colors = {
         "success": Colors.SUCCESS,
         "warning": Colors.WARNING,
@@ -337,33 +337,57 @@ def _render_insights(insights, device_type: str):
         "info": Colors.PRIMARY,
     }
 
+    # hex → rgba 변환 (배경 반투명용)
+    def _to_rgba(hex_color: str, alpha: float = 0.08) -> str:
+        h = hex_color.lstrip('#')
+        if len(h) == 3:
+            h = ''.join(c * 2 for c in h)
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+
     n_cols = 1 if device_type == "mobile" else 2
     cols = st.columns(n_cols)
 
     for idx, ins in enumerate(insights):
         color = category_colors.get(ins.category, Colors.PRIMARY)
         col = cols[idx % n_cols]
+
+        # 액션 가이드 영역 (action 필드가 있을 때만)
+        action_html = ""
+        action = getattr(ins, 'action', None)
+        if action:
+            action_bg = _to_rgba(color, 0.08)
+            action_html = (
+                f'<div style="background:{action_bg};'
+                f'border-radius:6px;padding:8px 12px;margin-top:10px;'
+                f'border-left:3px solid {color};">'
+                f'<div style="color:{color};font-size:12px;font-weight:700;'
+                f'margin-bottom:3px;">💡 권장 액션</div>'
+                f'<div style="color:{Colors.TEXT_MAIN};font-size:13px;'
+                f'line-height:1.5;">{action}</div>'
+                f'</div>'
+            )
+
         with col:
-            html = f"""
-            <div style="
-                background: {Colors.BG_CARD};
-                border: 1px solid {Colors.BORDER};
-                border-left: 4px solid {color};
-                border-radius: 10px;
-                padding: 14px 18px;
-                margin-bottom: 10px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-            ">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-                    <span style="font-size:18px;">{ins.icon}</span>
-                    <span style="color:{color}; font-size:14px; font-weight:700;">{ins.title}</span>
-                </div>
-                <div style="color:{Colors.TEXT_MAIN}; font-size:14px; line-height:1.5;">
-                    {ins.message}
-                </div>
-            </div>
-            """
+            # ⚠️ HTML을 한 줄로 압축 (마크다운 코드블록 회피)
+            html = (
+                f'<div style="background:{Colors.BG_CARD};'
+                f'border:1px solid {Colors.BORDER};'
+                f'border-left:4px solid {color};'
+                f'border-radius:10px;padding:14px 18px;margin-bottom:10px;'
+                f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+                f'<span style="font-size:18px;">{ins.icon}</span>'
+                f'<span style="color:{color};font-size:14px;font-weight:700;">{ins.title}</span>'
+                f'</div>'
+                f'<div style="color:{Colors.TEXT_MAIN};font-size:14px;line-height:1.5;">'
+                f'{ins.message}'
+                f'</div>'
+                f'{action_html}'
+                f'</div>'
+            )
             st.markdown(html, unsafe_allow_html=True)
+
 
 
 def _render_distribution_chart(df_latest: pd.DataFrame):
