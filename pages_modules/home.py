@@ -296,7 +296,14 @@ def _render_period_header(df: pd.DataFrame, latest_month: str):
             progress = (month_num - 6) / 6 * 100
             target_text = "12월 누적"
 
-        n_centers = len(safe_unique_centers(df))
+        # ⭐ 최신월 데이터로만 센터 수 카운트 (통합 전 사라진 센터 제외)
+        df_clean = df.dropna(subset=['평가월']).copy()
+        if not df_clean.empty:
+            latest_dt = sorted(df_clean['평가월'].unique())[-1]
+            df_latest = df_clean[df_clean['평가월'] == latest_dt]
+            n_centers = len(safe_unique_centers(df_latest))
+        else:
+            n_centers = 0
 
         html = (
             f'<div style="background:{Colors.PRIMARY_LIGHT};'
@@ -322,6 +329,7 @@ def _render_period_header(df: pd.DataFrame, latest_month: str):
         st.markdown(html, unsafe_allow_html=True)
     except Exception:
         st.caption(f"📅 현재 평가월: {latest_month}")
+
 
 
 def _render_insights(insights, device_type: str):
