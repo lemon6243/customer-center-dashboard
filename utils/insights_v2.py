@@ -1,49 +1,69 @@
 """
-자동 인사이트 생성 v2.1 - 911점 절대평가 기준 반영 + 미세 조정
-- 안전점검/중점고객/사용계약은 누적형 (하락 불가)
-- 상담응대/상담기여/만족도는 변동형 (2개월 연속 + 의미있는 하락폭 경고)
-- 반기 진척도 기반 정상 여부 판단
+자동 인사이트 생성 v2.2
+- 911점 절대평가 기준 (반기별 총점, 상/하반기 평균 911점 합격)
+- 변동형 KPI 잔변동 무시 (MIN_CHANGE_PCT)
+- 안전점검 누적 진척도 검증 (관대화)
+- 911점 도달 가능 센터 시나리오
+- 반기 전망 (낙관/현실 두 시나리오)
+- 작년 동기 비교 (달성률 기준)
 """
+
+from dataclasses import dataclass, field
+from typing import Optional, List, Dict
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Optional
-from dataclasses import dataclass
 
+# ==================== 상수 정의 ====================
 
-# ==================== 평가 기준 ====================
+TARGET_TOTAL = 911  # 절대평가 기준
+PERFECT_TOTAL = 1000
+DANGER_THRESHOLD = 851  # 850점 이하 위험
 
-# 911점 기준 (KPI별 달성률·점수)
-TARGET_TOTAL = 911
-
-KPI_TARGETS = {
-    '안전점검':  {'rate': 90, 'score': 495, 'max': 550, 'type': '누적', 'icon': '🔵',
-                'rate_col': '안전점검실점검율', 'score_col': '안전점검_점수'},
-    '중점고객':  {'rate': 93, 'score': 93,  'max': 100, 'type': '누적', 'icon': '🟢',
-                'rate_col': '중점고객안전점검율', 'score_col': '중점고객_점수'},
-    '사용계약':  {'rate': 90, 'score': 45,  'max': 50,  'type': '누적', 'icon': '🟡',
-                'rate_col': '사용계약율', 'score_col': '사용계약_점수'},
-    '상담응대':  {'rate': 93, 'score': 93,  'max': 100, 'type': '변동', 'icon': '🟠',
-                'rate_col': '상담응대율', 'score_col': '상담응대_점수'},
-    '상담기여':  {'rate': 93, 'score': 93,  'max': 100, 'type': '변동', 'icon': '🔴',
-                'rate_col': '상담기여도', 'score_col': '상담기여_점수'},
-    '만족도':    {'rate': 92, 'score': 92,  'max': 100, 'type': '변동', 'icon': '🟣',
-                'rate_col': '고객서비스만족도', 'score_col': '만족도_점수'},
-}
-
-# 변동형 KPI 연속 하락/상승 경고 - 최소 변동폭 (잔변동 무시용)
+# 변동형 KPI 잔변동 무시 임계값 (%p)
 MIN_CHANGE_PCT = {
-    '상담응대': 3.0,   # 3%p 이상 변동만
+    '상담응대': 3.0,
     '상담기여': 3.0,
-    '만족도':   3.0,
-    '사용계약': 5.0,   # 5%p 이상
+    '만족도': 3.0,
+    '사용계약': 5.0,
 }
 
-# 안전점검 진척도 미달 허용 오차 (정상 진척도 대비 -8%p까지는 정상으로 간주)
+# 안전점검 진척도 허용 오차 (%p, 정상치 대비 -이만큼이면 경고)
 PROGRESS_TOLERANCE = 8.0
 
-# 911점 도달 가능 범위 (목표 -16점 ~ -1점)
-NEAR_TARGET_GAP = 16
+# 911점 도달 가능 센터 범위
+NEAR_TARGET_LOW = 895
+NEAR_TARGET_HIGH = 910
 
+# 연속 하락 기준
+DROP_STREAK_THRESHOLD = 2
+
+# 통합 센터 (작년 비교 제외)
+MERGED_CENTERS = {'퇴계원/별내', '별내/퇴계원'}  # 실제 표기명 확인 필요
+
+# 작년 KPI 만점 (구조 변경 대응)
+LAST_YEAR_KPI_MAX = {
+    '안전점검': 600,
+    '중점고객': 100,
+    '상담응대': 100,
+    '상담기여': 100,
+    '만족도': 100,
+}
+
+# 금년 KPI 만점
+THIS_YEAR_KPI_MAX = {
+    '안전점검': 550,
+    '중점고객': 100,
+    '사용계약': 50,
+    '상담응대': 100,
+    '상담기여': 100,
+    '만족도': 100,
+}
+
+# 안전점검 월별 정상 진척도 (반기 기준, 90% 달성 페이스)
+SAFETY_MONTHLY_TARGET = {
+    1: 15, 2: 30, 3: 45, 4: 60, 5: 75, 6: 90,
+    7: 15, 8: 30, 9: 45, 10: 60, 11: 75, 12: 90,
+}
 
 # ==================== 데이터 클래스 ====================
 
@@ -52,526 +72,551 @@ class Insight:
     icon: str
     title: str
     message: str
-    category: str = "info"   # success / warning / danger / info
-    priority: int = 5         # 낮을수록 우선
+    category: str = 'info'  # info, success, warning, danger
+    priority: int = 5
     action: Optional[str] = None
 
 
 # ==================== 헬퍼 함수 ====================
 
-def _get_half_progress(month: int) -> tuple:
-    """월 → (반기, 진행 개월수, 진척도 %)"""
-    if 1 <= month <= 6:
-        return '상반기', month, month / 6 * 100
-    else:
-        return '하반기', month - 6, (month - 6) / 6 * 100
+def _get_half(month: int) -> str:
+    """월 → 상반기/하반기"""
+    return '상반기' if 1 <= month <= 6 else '하반기'
 
 
-def _expected_rate(target_rate: float, month: int) -> float:
-    """해당 월의 정상 누적 진척도 계산 (월별 산술 비례)"""
-    _, _, progress = _get_half_progress(month)
-    return target_rate * progress / 100
+def _get_half_last_month(half: str) -> int:
+    """반기 → 마지막 월"""
+    return 6 if half == '상반기' else 12
 
 
-def _get_latest_two_months(df: pd.DataFrame):
-    """최신 월과 전월 추출"""
-    if '평가월' not in df.columns or df.empty:
-        return None, None
-    months = sorted(df.dropna(subset=['평가월'])['평가월'].unique())
-    if len(months) < 1:
-        return None, None
-    latest = months[-1]
-    prev = months[-2] if len(months) >= 2 else None
-    return latest, prev
+def _to_month_int(month_val) -> int:
+    """평가월 값 → 월(int)"""
+    if pd.isna(month_val):
+        return 0
+    if isinstance(month_val, (int, np.integer)):
+        return int(month_val)
+    try:
+        return pd.to_datetime(month_val).month
+    except Exception:
+        return 0
 
 
-def _find_col(df: pd.DataFrame, candidates: list) -> Optional[str]:
-    """후보 컬럼명 중 데이터에 있는 첫 번째 컬럼 반환"""
-    for c in candidates:
-        if c in df.columns:
-            return c
-    return None
-
-
-def _normalize_rate(value) -> float:
-    """비율 값을 0~100 스케일로 정규화 (0~1 또는 0~100 자동 감지)"""
-    if pd.isna(value):
+def _normalize_pct(val) -> float:
+    """0~1 / 0~100 혼재 대응 → 0~100"""
+    if pd.isna(val):
         return 0.0
-    v = float(value)
-    if v <= 1.5:  # 0~1 비율로 저장된 경우
-        return v * 100
-    return v
+    v = float(val)
+    return v * 100 if v <= 1.0 else v
 
 
-# ==================== 인사이트 생성 함수 ====================
+def _safe_latest_month(df: pd.DataFrame):
+    """가장 최근 평가월 반환"""
+    if '평가월' not in df.columns or df.empty:
+        return None
+    months = pd.to_datetime(df['평가월'], errors='coerce').dropna()
+    if months.empty:
+        return None
+    return months.max()
+
+
+def _filter_by_month(df: pd.DataFrame, month) -> pd.DataFrame:
+    """특정 평가월 데이터 필터"""
+    if month is None or df.empty:
+        return df.iloc[0:0]
+    return df[pd.to_datetime(df['평가월'], errors='coerce') == pd.Timestamp(month)]
+
+
+# ==================== 기존 인사이트 함수 ====================
 
 def insight_overall_score(df: pd.DataFrame, latest, prev) -> Optional[Insight]:
-    """전체 평균 점수 및 변화"""
-    if '총점' not in df.columns:
+    """전체 평균 점수"""
+    df_latest = _filter_by_month(df, latest)
+    if df_latest.empty:
         return None
-
-    df_latest = df[df['평가월'] == latest]
     avg = df_latest['총점'].mean()
-
-    if pd.isna(avg):
-        return None
-
+    
+    delta_msg = ""
     if prev is not None:
-        df_prev = df[df['평가월'] == prev]
-        prev_avg = df_prev['총점'].mean()
-        if pd.notna(prev_avg):
-            diff = avg - prev_avg
-            sign = "+" if diff >= 0 else ""
-            change_text = f" (전월 대비 {sign}{diff:.1f}점)"
-        else:
-            change_text = ""
+        df_prev = _filter_by_month(df, prev)
+        if not df_prev.empty:
+            prev_avg = df_prev['총점'].mean()
+            delta = avg - prev_avg
+            arrow = '🔺' if delta > 0 else ('🔻' if delta < 0 else '➡️')
+            delta_msg = f" (전월 대비 {arrow} {abs(delta):.1f}점)"
+    
+    if avg >= TARGET_TOTAL:
+        category = 'success'
+        action = '현재 페이스 유지하며 우수 센터의 성공 요인을 확산해 보세요.'
+    elif avg >= 880:
+        category = 'info'
+        action = f'전체 평균 911점까지 {TARGET_TOTAL - avg:.0f}점 부족. 변동형 KPI 개선 여력 점검 필요.'
     else:
-        change_text = ""
-
-    # 911점 대비
-    gap = avg - TARGET_TOTAL
-    if gap >= 0:
-        category = "success"
-        status = f"목표 +{gap:.1f}점 달성 중"
-        priority = 5
-    elif gap >= -30:
-        category = "warning"
-        status = f"목표까지 {-gap:.1f}점 부족"
-        priority = 3
-    else:
-        category = "danger"
-        status = f"목표까지 {-gap:.1f}점 부족 (긴급)"
-        priority = 2
-
+        category = 'warning'
+        action = '평균이 880점 미만입니다. 안전점검 진척도와 변동형 KPI를 동시에 점검하세요.'
+    
     return Insight(
-        icon="📊",
-        title="전체 평균",
-        message=f"이번 달 평균 <b>{avg:.1f}점</b>{change_text} — {status}",
+        icon='📊',
+        title='전체 평균 점수',
+        message=f'전체 23개 센터 평균 **{avg:.1f}점**{delta_msg}',
         category=category,
-        priority=priority,
+        priority=1,
+        action=action,
     )
-
-
-def insight_safety_progress(df: pd.DataFrame, latest) -> List[Insight]:
-    """
-    안전점검·중점고객·사용계약 진척도 미달 센터 경고
-    - 정상 진척도 - 허용 오차(8%p) 미달 시 경고
-    - 반기 마감(6월/12월) 임박 시 긴급
-    """
-    insights = []
-    month = pd.Timestamp(latest).month
-    half_name, half_month, _ = _get_half_progress(month)
-
-    df_latest = df[df['평가월'] == latest].copy()
-
-    for kpi_name in ['안전점검', '중점고객']:
-        cfg = KPI_TARGETS[kpi_name]
-        rate_col = _find_col(df_latest, [cfg['rate_col'], f"{kpi_name}_달성률"])
-
-        if rate_col is None:
-            continue
-
-        expected = _expected_rate(cfg['rate'], month)
-        threshold = expected - PROGRESS_TOLERANCE  # 허용 오차 완화
-
-        # 비율 정규화 컬럼 (분석용)
-        df_work = df_latest[['센터명', rate_col]].copy()
-        df_work['_norm_rate'] = df_work[rate_col].apply(_normalize_rate)
-
-        df_behind = df_work[df_work['_norm_rate'] < threshold].copy()
-
-        if df_behind.empty:
-            continue
-
-        df_behind = df_behind.sort_values('_norm_rate').head(3)
-
-        names = []
-        for _, row in df_behind.iterrows():
-            actual = row['_norm_rate']
-            shortfall = expected - actual
-            names.append(f"{row['센터명']}({actual:.1f}%, -{shortfall:.1f}%p)")
-
-        n_behind = len(df_work[df_work['_norm_rate'] < threshold])
-
-        message = (
-            f"{half_name} {half_month}개월차 정상 진척도 "
-            f"<b>{expected:.0f}%</b> 미달 센터 <b>{n_behind}개</b><br>"
-            f"하위: {', '.join(names)}"
-        )
-
-        # 6월/12월 (반기 마감) 임박 시 긴급도 ↑
-        is_endmonth = (month in [6, 12])
-        if is_endmonth:
-            category = "danger"
-            priority = 1
-            action = f"⚡ 반기 마감 임박! 6월 내 {cfg['rate']}% 도달 필수"
-        else:
-            category = "warning"
-            priority = 3
-            remaining_months = 6 - half_month if month <= 6 else 12 - month
-            if remaining_months > 0:
-                need_per_month = (cfg['rate'] - expected) / remaining_months
-                action = f"잔여 {remaining_months}개월간 월평균 +{need_per_month:.1f}%p 점검 필요"
-            else:
-                action = f"이번 달 내 {cfg['rate']}% 도달 점검 시급"
-
-        insights.append(Insight(
-            icon=cfg['icon'],
-            title=f"{kpi_name} 진척도 미달",
-            message=message,
-            category=category,
-            priority=priority,
-            action=action,
-        ))
-
-    return insights
-
-
-def insight_volatile_kpi_drop(df: pd.DataFrame, latest, prev) -> List[Insight]:
-    """
-    변동형 KPI 2개월 연속 하락 (의미있는 하락폭만)
-    - 3개월 데이터 필요 (m1 > m2 > m3)
-    - 누적 하락폭이 MIN_CHANGE_PCT 이상인 케이스만
-    """
-    insights = []
-    if prev is None:
-        return insights
-
-    months = sorted(df.dropna(subset=['평가월'])['평가월'].unique())
-    if len(months) < 3:
-        return insights
-
-    m1, m2, m3 = months[-3], months[-2], months[-1]
-
-    for kpi_name, cfg in KPI_TARGETS.items():
-        # 변동형만 + 사용계약 (사용계약도 하락 가능)
-        if cfg['type'] != '변동' and kpi_name != '사용계약':
-            continue
-
-        rate_col = _find_col(df, [cfg['rate_col'], f"{kpi_name}_달성률"])
-        if rate_col is None:
-            continue
-
-        df3 = df[df['평가월'].isin([m1, m2, m3])].copy()
-        if df3.empty:
-            continue
-
-        # 비율 정규화
-        df3['_norm_rate'] = df3[rate_col].apply(_normalize_rate)
-
-        pivot = df3.pivot_table(
-            index='센터명', columns='평가월', values='_norm_rate', aggfunc='mean'
-        )
-
-        if m1 not in pivot.columns or m2 not in pivot.columns or m3 not in pivot.columns:
-            continue
-
-        # 최소 하락폭 기준
-        min_drop = MIN_CHANGE_PCT.get(kpi_name, 3.0)
-
-        # 2개월 연속 하락 + 누적 하락폭 기준 충족
-        falling = pivot[
-            (pivot[m1] > pivot[m2]) &
-            (pivot[m2] > pivot[m3]) &
-            ((pivot[m1] - pivot[m3]) >= min_drop)
-        ].copy()
-
-        if falling.empty:
-            continue
-
-        falling['_drop'] = pivot[m1] - pivot[m3]
-        falling = falling.sort_values('_drop', ascending=False).head(3)
-
-        names = []
-        for center, row in falling.iterrows():
-            v1, v2, v3 = row[m1], row[m2], row[m3]
-            drop = v1 - v3
-            names.append(f"{center} ({v1:.1f}%→{v2:.1f}%→{v3:.1f}%, -{drop:.1f}%p)")
-
-        total_count = len(falling) if len(falling) >= 3 else len(falling)
-        # 정확한 전체 카운트
-        full_count = (
-            (pivot[m1] > pivot[m2]) &
-            (pivot[m2] > pivot[m3]) &
-            ((pivot[m1] - pivot[m3]) >= min_drop)
-        ).sum()
-
-        message = (
-            f"<b>{kpi_name}</b> 2개월 연속 하락 "
-            f"(누적 -{min_drop:.0f}%p 이상) <b>{full_count}개</b><br>"
-            f"{'<br>'.join(names)}"
-        )
-
-        insights.append(Insight(
-            icon=cfg['icon'],
-            title=f"{kpi_name} 연속 하락 경고",
-            message=message,
-            category="danger",
-            priority=2,
-            action=f"{kpi_name} 하락 원인 점검 및 6월 회복 계획 수립 필요",
-        ))
-
-    return insights
-
-
-def insight_volatile_kpi_rising(df: pd.DataFrame, latest, prev) -> List[Insight]:
-    """변동형 KPI 2개월 연속 상승 (의미있는 상승폭만)"""
-    insights = []
-    if prev is None:
-        return insights
-
-    months = sorted(df.dropna(subset=['평가월'])['평가월'].unique())
-    if len(months) < 3:
-        return insights
-
-    m1, m2, m3 = months[-3], months[-2], months[-1]
-    rising_all = []
-
-    for kpi_name, cfg in KPI_TARGETS.items():
-        if cfg['type'] != '변동' and kpi_name != '사용계약':
-            continue
-
-        rate_col = _find_col(df, [cfg['rate_col'], f"{kpi_name}_달성률"])
-        if rate_col is None:
-            continue
-
-        df3 = df[df['평가월'].isin([m1, m2, m3])].copy()
-        df3['_norm_rate'] = df3[rate_col].apply(_normalize_rate)
-
-        pivot = df3.pivot_table(index='센터명', columns='평가월', values='_norm_rate', aggfunc='mean')
-
-        if m1 not in pivot.columns or m2 not in pivot.columns or m3 not in pivot.columns:
-            continue
-
-        min_rise = MIN_CHANGE_PCT.get(kpi_name, 3.0)
-
-        rising = pivot[
-            (pivot[m1] < pivot[m2]) &
-            (pivot[m2] < pivot[m3]) &
-            ((pivot[m3] - pivot[m1]) >= min_rise)
-        ]
-
-        for center in rising.index:
-            v1, v3 = rising.loc[center, m1], rising.loc[center, m3]
-            rising_all.append((center, kpi_name, cfg['icon'], v3 - v1))
-
-    if not rising_all:
-        return insights
-
-    rising_all.sort(key=lambda x: -x[3])
-    top3 = rising_all[:3]
-
-    items = [
-        f"{icon} {center} <b>{kpi}</b> +{gain:.1f}%p"
-        for center, kpi, icon, gain in top3
-    ]
-
-    insights.append(Insight(
-        icon="📈",
-        title="상승 모멘텀",
-        message=f"2개월 연속 의미있는 상승 사례<br>{'<br>'.join(items)}",
-        category="success",
-        priority=4,
-    ))
-
-    return insights
-
-
-def insight_target_scenario(df: pd.DataFrame, latest) -> List[Insight]:
-    """
-    911점 도달 가능 센터 (현재 895~910점, 16점 이내)
-    어떤 KPI를 얼마나 올리면 911점이 되는지 시뮬레이션
-    """
-    insights = []
-    if '총점' not in df.columns:
-        return insights
-
-    df_latest = df[df['평가월'] == latest].copy()
-
-    # 911점에서 NEAR_TARGET_GAP(16점) 이내 센터
-    df_near = df_latest[
-        (df_latest['총점'] >= TARGET_TOTAL - NEAR_TARGET_GAP) &
-        (df_latest['총점'] < TARGET_TOTAL)
-    ].sort_values('총점', ascending=False).head(5)
-
-    if df_near.empty:
-        return insights
-
-    scenarios = []
-    for _, row in df_near.iterrows():
-        center = row['센터명']
-        score = row['총점']
-        gap = TARGET_TOTAL - score
-
-        # 가장 임팩트 큰 KPI 찾기
-        candidates = []
-        for kpi_name, cfg in KPI_TARGETS.items():
-            score_col = cfg['score_col']
-            if score_col not in row.index:
-                continue
-            current = row.get(score_col, 0)
-            if pd.isna(current):
-                continue
-
-            if cfg['type'] == '누적':
-                max_possible = cfg['score']  # 911 기준 점수
-            else:
-                max_possible = cfg['max']
-
-            potential = max_possible - current
-            if potential > 0:
-                candidates.append((kpi_name, cfg['icon'], current, potential, cfg['type']))
-
-        if not candidates:
-            continue
-
-        candidates.sort(key=lambda x: -x[3])
-        top_kpi = candidates[0]
-
-        scenarios.append(
-            f"<b>{center}</b> {score:.0f}점 (목표 -{gap:.0f}점)<br>"
-            f"&nbsp;&nbsp;→ {top_kpi[1]} {top_kpi[0]} +{min(top_kpi[3], gap):.0f}점이면 911점 도달"
-        )
-
-    if scenarios:
-        insights.append(Insight(
-            icon="🎯",
-            title="911점 도달 가능 센터",
-            message="<br><br>".join(scenarios),
-            category="info",
-            priority=3,
-            action="해당 센터에 우선 지원 집중 권장",
-        ))
-
-    return insights
 
 
 def insight_danger_zone(df: pd.DataFrame, latest) -> Optional[Insight]:
-    """
-    위험 센터 (851점 미만)
-    - 0개면 표시 안 함
-    """
-    if '총점' not in df.columns:
+    """위험 센터 (851점 미만)"""
+    df_latest = _filter_by_month(df, latest)
+    if df_latest.empty:
         return None
-
-    df_latest = df[df['평가월'] == latest].copy()
-    month = pd.Timestamp(latest).month
-    half_name, _, _ = _get_half_progress(month)
-
-    df_danger = df_latest[df_latest['총점'] < 851].sort_values('총점').head(5)
-
-    if df_danger.empty:
+    danger = df_latest[df_latest['총점'] < DANGER_THRESHOLD].sort_values('총점')
+    if danger.empty:
         return None
-
-    items = []
-    for _, row in df_danger.iterrows():
-        center = row['센터명']
-        score = row['총점']
-        items.append(f"{center} <b>{score:.0f}점</b>")
-
-    endmonth = 6 if month <= 6 else 12
-
+    
+    names = ', '.join(danger['센터명'].head(3).tolist())
+    extra = f' 외 {len(danger)-3}개' if len(danger) > 3 else ''
+    
     return Insight(
-        icon="🚨",
-        title=f"위험 센터 ({len(df_danger)}개)",
-        message=f"851점 미만<br>{', '.join(items)}",
-        category="danger",
-        priority=1,
-        action=f"{half_name} 마감({endmonth}월)까지 911점 도달 위한 집중 관리 필요",
+        icon='🚨',
+        title=f'위험 센터 {len(danger)}개',
+        message=f'**{names}**{extra} 센터가 850점 미만입니다.',
+        category='danger',
+        priority=2,
+        action='해당 센터의 변동형 KPI 회복과 안전점검 진척도를 우선 점검하세요.',
     )
 
 
-def insight_top_performers(df: pd.DataFrame, latest) -> Optional[Insight]:
-    """상위 우수 센터 (911점 이상)"""
-    if '총점' not in df.columns:
+def insight_safety_progress(df: pd.DataFrame, latest) -> Optional[Insight]:
+    """안전점검 누적 진척도 미달 (관대 기준)"""
+    df_latest = _filter_by_month(df, latest)
+    if df_latest.empty or '안전점검실점검율' not in df.columns:
         return None
-
-    df_latest = df[df['평가월'] == latest].copy()
-    df_top = df_latest[df_latest['총점'] >= TARGET_TOTAL].sort_values('총점', ascending=False)
-
-    if df_top.empty:
+    
+    month = _to_month_int(latest)
+    expected = SAFETY_MONTHLY_TARGET.get(month, 0)
+    if expected == 0:
         return None
-
-    n = len(df_top)
-    top3 = df_top.head(3)
-    names = [f"{r['센터명']} <b>{r['총점']:.0f}점</b>" for _, r in top3.iterrows()]
-
+    
+    threshold = expected - PROGRESS_TOLERANCE
+    
+    df_latest = df_latest.copy()
+    df_latest['_progress'] = df_latest['안전점검실점검율'].apply(_normalize_pct)
+    behind = df_latest[df_latest['_progress'] < threshold].sort_values('_progress')
+    
+    if behind.empty:
+        return None
+    
+    names = ', '.join(behind['센터명'].head(3).tolist())
+    extra = f' 외 {len(behind)-3}개' if len(behind) > 3 else ''
+    
     return Insight(
-        icon="🏆",
-        title=f"목표 달성 센터 {n}개",
-        message=f"911점 이상 달성<br>Top 3: {', '.join(names)}",
-        category="success",
-        priority=4,
+        icon='⚠️',
+        title=f'안전점검 진척도 미달 {len(behind)}개',
+        message=(
+            f'**{names}**{extra} 센터의 안전점검 누적률이 '
+            f'{month}월 정상치({expected}%) 대비 {PROGRESS_TOLERANCE:.0f}%p 이상 부족합니다.'
+        ),
+        category='warning',
+        priority=3,
+        action=f'반기 마지막 달까지 90% 도달을 위해 잔여 점검량을 재분배하세요.',
     )
 
 
-# ==================== 통합 함수 ====================
-
-def get_all_insights(df: pd.DataFrame, max_count: int = 6) -> List[Insight]:
-    """
-    모든 인사이트 생성 → 우선순위로 정렬 후 상위 N개 반환
-    """
-    if df is None or df.empty:
-        return []
-
-    latest, prev = _get_latest_two_months(df)
-    if latest is None:
-        return []
-
-    all_insights = []
-
-    ins = insight_overall_score(df, latest, prev)
-    if ins:
-        all_insights.append(ins)
-
-    ins = insight_danger_zone(df, latest)
-    if ins:
-        all_insights.append(ins)
-
-    all_insights.extend(insight_safety_progress(df, latest))
-    all_insights.extend(insight_volatile_kpi_drop(df, latest, prev))
-    all_insights.extend(insight_target_scenario(df, latest))
-    all_insights.extend(insight_volatile_kpi_rising(df, latest, prev))
-
-    ins = insight_top_performers(df, latest)
-    if ins:
-        all_insights.append(ins)
-
-    all_insights.sort(key=lambda x: x.priority)
-    return all_insights[:max_count]
-
-
-# ==================== 랭킹 데이터 (기존 호환) ====================
-
-def get_ranking_data(df_latest: pd.DataFrame, n: int = 5, mode: str = "score") -> Dict[str, pd.DataFrame]:
-    """Top N / Bottom N 랭킹 데이터"""
-    if df_latest is None or df_latest.empty or '총점' not in df_latest.columns:
-        return {"top": pd.DataFrame(), "bottom": pd.DataFrame()}
-
-    df_clean = df_latest.dropna(subset=['총점', '센터명']).copy()
-    top = df_clean.sort_values('총점', ascending=False).head(n)
-    bottom = df_clean.sort_values('총점', ascending=True).head(n)
-
-    return {"top": top, "bottom": bottom}
-
-
-def get_change_ranking(df: pd.DataFrame, n: int = 5) -> Dict[str, pd.DataFrame]:
-    """전월 대비 상승/하락 랭킹"""
-    if df is None or df.empty or '총점' not in df.columns:
-        return {"rising": pd.DataFrame(), "falling": pd.DataFrame()}
-
-    latest, prev = _get_latest_two_months(df)
+def insight_volatile_kpi_drop(df: pd.DataFrame, latest, prev) -> Optional[Insight]:
+    """변동형 KPI 연속 하락 (잔변동 무시)"""
     if prev is None:
-        return {"rising": pd.DataFrame(), "falling": pd.DataFrame()}
+        return None
+    
+    volatile_cols = {
+        '상담응대': '상담응대율',
+        '상담기여': '상담기여도',
+        '만족도': '고객서비스만족도',
+    }
+    
+    findings = []
+    for kpi_name, col in volatile_cols.items():
+        if col not in df.columns:
+            continue
+        
+        pivot = df.pivot_table(index='센터명', columns='평가월', values=col, aggfunc='first')
+        pivot = pivot.reindex(sorted(pivot.columns), axis=1)
+        if pivot.shape[1] < 2:
+            continue
+        
+        latest_col = pivot.columns[-1]
+        prev_col = pivot.columns[-2]
+        
+        threshold = MIN_CHANGE_PCT.get(kpi_name, 3.0)
+        
+        df_diff = (pivot[latest_col].apply(_normalize_pct) 
+                   - pivot[prev_col].apply(_normalize_pct))
+        
+        # 의미있는 하락 (threshold 이상)
+        meaningful_drops = df_diff[df_diff <= -threshold]
+        if not meaningful_drops.empty:
+            findings.append((kpi_name, len(meaningful_drops), meaningful_drops.idxmin(), meaningful_drops.min()))
+    
+    if not findings:
+        return None
+    
+    msgs = []
+    for kpi_name, cnt, worst_center, worst_val in findings:
+        msgs.append(f'**{kpi_name}** {cnt}개 센터 (최대 하락: {worst_center} {worst_val:.1f}%p)')
+    
+    return Insight(
+        icon='📉',
+        title='변동형 KPI 의미있는 하락',
+        message=' / '.join(msgs),
+        category='warning',
+        priority=4,
+        action='하락폭이 큰 센터의 원인을 파악하고 다음 달 회복 계획을 수립하세요.',
+    )
 
-    df_latest = df[df['평가월'] == latest][['센터명', '총점']].copy()
-    df_prev = df[df['평가월'] == prev][['센터명', '총점']].rename(columns={'총점': '전월총점'})
 
-    merged = df_latest.merge(df_prev, on='센터명', how='left')
-    merged['변화량'] = merged['총점'] - merged['전월총점']
-    merged = merged.dropna(subset=['변화량'])
+def insight_volatile_kpi_rising(df: pd.DataFrame, latest, prev) -> Optional[Insight]:
+    """변동형 KPI 상승 모멘텀"""
+    if prev is None:
+        return None
+    
+    volatile_cols = {
+        '상담응대': '상담응대율',
+        '상담기여': '상담기여도',
+        '만족도': '고객서비스만족도',
+    }
+    
+    rising_total = 0
+    best_kpi = None
+    best_center = None
+    best_val = 0
+    
+    for kpi_name, col in volatile_cols.items():
+        if col not in df.columns:
+            continue
+        pivot = df.pivot_table(index='센터명', columns='평가월', values=col, aggfunc='first')
+        pivot = pivot.reindex(sorted(pivot.columns), axis=1)
+        if pivot.shape[1] < 2:
+            continue
+        
+        threshold = MIN_CHANGE_PCT.get(kpi_name, 3.0)
+        df_diff = (pivot[pivot.columns[-1]].apply(_normalize_pct) 
+                   - pivot[pivot.columns[-2]].apply(_normalize_pct))
+        meaningful_rises = df_diff[df_diff >= threshold]
+        rising_total += len(meaningful_rises)
+        
+        if not meaningful_rises.empty and meaningful_rises.max() > best_val:
+            best_val = meaningful_rises.max()
+            best_center = meaningful_rises.idxmax()
+            best_kpi = kpi_name
+    
+    if rising_total == 0 or best_center is None:
+        return None
+    
+    return Insight(
+        icon='📈',
+        title=f'변동형 KPI 상승 모멘텀 {rising_total}건',
+        message=f'**{best_center}**의 {best_kpi}가 {best_val:.1f}%p 상승하는 등 회복세가 보입니다.',
+        category='success',
+        priority=5,
+        action='상승 요인을 분석해 다른 센터에 확산할 만한 베스트 프랙티스를 도출하세요.',
+    )
 
+
+def insight_target_scenario(df: pd.DataFrame, latest) -> Optional[Insight]:
+    """911점 도달 가능 센터 (895~910점 범위)"""
+    df_latest = _filter_by_month(df, latest)
+    if df_latest.empty:
+        return None
+    
+    near = df_latest[
+        (df_latest['총점'] >= NEAR_TARGET_LOW) & 
+        (df_latest['총점'] < TARGET_TOTAL)
+    ].sort_values('총점', ascending=False)
+    
+    if near.empty:
+        return None
+    
+    names = ', '.join(near['센터명'].head(5).tolist())
+    extra = f' 외 {len(near)-5}개' if len(near) > 5 else ''
+    
+    return Insight(
+        icon='🎯',
+        title=f'911점 도달 가능 {len(near)}개',
+        message=f'**{names}**{extra} 센터가 911점까지 16점 이내로 근접해 있습니다.',
+        category='info',
+        priority=6,
+        action='이들 센터에 변동형 KPI 1~2개를 집중 관리하면 목표 달성 가능합니다.',
+    )
+
+
+# ==================== 신규: 반기 전망 함수 ====================
+
+def predict_half_total(
+    df: pd.DataFrame,
+    center: str,
+    current_month=None,
+    df_last_year: Optional[pd.DataFrame] = None,
+) -> Optional[Dict]:
+    """
+    개별 센터의 반기 최종 예상 총점 예측
+    
+    Returns:
+        {
+            'center': 센터명,
+            'half': '상반기'/'하반기',
+            'current_score': 현재 누적점수,
+            'current_month': 현재월,
+            'remaining_months': 남은 개월,
+            'predicted_optimistic': 낙관 예측 (911 목표 페이스),
+            'predicted_realistic': 현실 예측 (최근 3개월 평균),
+            'last_year_reference': 작년 동기 점수 (참고용),
+            'merged_flag': 통합센터 여부,
+            'gap_to_target': 911 - realistic,
+            'safety_level': '안전'/'주의'/'위험',
+            'current_penalty': 현재 감점,
+        }
+    """
+    df_c = df[df['센터명'] == center].copy()
+    if df_c.empty:
+        return None
+    
+    df_c['_month_dt'] = pd.to_datetime(df_c['평가월'], errors='coerce')
+    df_c = df_c.dropna(subset=['_month_dt']).sort_values('_month_dt')
+    
+    if df_c.empty:
+        return None
+    
+    if current_month is None:
+        current_month = df_c['_month_dt'].max()
+    
+    df_c = df_c[df_c['_month_dt'] <= pd.Timestamp(current_month)]
+    if df_c.empty:
+        return None
+    
+    cur_month_int = pd.Timestamp(current_month).month
+    half = _get_half(cur_month_int)
+    half_last = _get_half_last_month(half)
+    remaining = half_last - cur_month_int
+    
+    current_score = float(df_c['총점'].iloc[-1])
+    current_penalty = 0
+    if '주의경고' in df_c.columns:
+        current_penalty += float(df_c['주의경고'].iloc[-1] or 0)
+    
+    # 현실 예측: 최근 3개월 평균 증가 페이스
+    if len(df_c) >= 2 and remaining > 0:
+        recent = df_c.tail(min(4, len(df_c)))
+        if len(recent) >= 2:
+            diffs = recent['총점'].diff().dropna()
+            avg_pace = diffs.mean() if not diffs.empty else 0
+        else:
+            avg_pace = 0
+        predicted_realistic = current_score + (avg_pace * remaining)
+    else:
+        predicted_realistic = current_score
+    
+    # 낙관 예측: 911점 도달을 위한 필요 페이스 vs 실제 페이스 중 더 큰 값
+    # = 안전점검 정상 진척(매월 +15%p × 안전점검 만점 비중) + 변동KPI 유지
+    if remaining > 0:
+        # 단순 추정: 남은 월 × 평균 15점 증가 (안전점검 정상 페이스 가정)
+        optimistic_pace = max(avg_pace if len(df_c) >= 2 else 0, 80 / max(remaining, 1))
+        predicted_optimistic = current_score + (optimistic_pace * remaining)
+        # 상한: 1000점
+        predicted_optimistic = min(predicted_optimistic, PERFECT_TOTAL)
+    else:
+        predicted_optimistic = current_score
+    
+    # 감점 누적 반영 (이미 총점에 반영되어 있으므로 추가 조정 불필요, 단 잔여월에도 동일 감점 유지)
+    # 페이스 기반 예측에는 이미 감점 영향이 녹아 있음
+    
+    # 작년 동기 참고값
+    last_year_reference = None
+    merged_flag = center in MERGED_CENTERS
+    if df_last_year is not None and not merged_flag:
+        df_ly = df_last_year[df_last_year['센터명'] == center].copy()
+        if not df_ly.empty:
+            df_ly['_month_dt'] = pd.to_datetime(df_ly['평가월'], errors='coerce')
+            df_ly = df_ly.dropna(subset=['_month_dt']).sort_values('_month_dt')
+            if not df_ly.empty:
+                # 같은 반기의 마지막 점수
+                ly_same_half = df_ly[df_ly['_month_dt'].dt.month.isin(
+                    range(1, 7) if half == '상반기' else range(7, 13)
+                )]
+                if not ly_same_half.empty:
+                    last_year_reference = float(ly_same_half['총점'].iloc[-1])
+    
+    # 안전도 분류
+    if predicted_realistic >= TARGET_TOTAL:
+        safety = '안전'
+    elif predicted_realistic >= 895:
+        safety = '주의'
+    else:
+        safety = '위험'
+    
     return {
-        "rising": merged.sort_values('변화량', ascending=False).head(n),
-        "falling": merged.sort_values('변화량', ascending=True).head(n),
+        'center': center,
+        'half': half,
+        'current_score': current_score,
+        'current_month': cur_month_int,
+        'remaining_months': remaining,
+        'predicted_optimistic': predicted_optimistic,
+        'predicted_realistic': predicted_realistic,
+        'last_year_reference': last_year_reference,
+        'merged_flag': merged_flag,
+        'gap_to_target': TARGET_TOTAL - predicted_realistic,
+        'safety_level': safety,
+        'current_penalty': current_penalty,
+    }
+
+
+def get_half_outlook(
+    df: pd.DataFrame,
+    current_month=None,
+    df_last_year: Optional[pd.DataFrame] = None,
+) -> pd.DataFrame:
+    """
+    전 센터 반기 전망 DataFrame
+    
+    Returns: DataFrame with columns:
+        센터명, 현재점수, 낙관전망, 현실전망, 작년참고, 목표차이, 안전도, 통합여부
+    """
+    if current_month is None:
+        current_month = _safe_latest_month(df)
+    if current_month is None:
+        return pd.DataFrame()
+    
+    centers = df['센터명'].dropna().unique()
+    rows = []
+    for center in centers:
+        result = predict_half_total(df, center, current_month, df_last_year)
+        if result is None:
+            continue
+        rows.append({
+            '센터명': result['center'],
+            '현재점수': round(result['current_score'], 1),
+            '낙관전망': round(result['predicted_optimistic'], 1),
+            '현실전망': round(result['predicted_realistic'], 1),
+            '작년참고': round(result['last_year_reference'], 1) if result['last_year_reference'] else None,
+            '목표차이': round(result['gap_to_target'], 1),
+            '안전도': result['safety_level'],
+            '통합여부': '🆕 통합' if result['merged_flag'] else '',
+            '현재감점': result['current_penalty'],
+        })
+    
+    if not rows:
+        return pd.DataFrame()
+    
+    df_out = pd.DataFrame(rows).sort_values('현실전망', ascending=False).reset_index(drop=True)
+    return df_out
+
+
+def insight_half_strategy(
+    df: pd.DataFrame,
+    latest,
+    df_last_year: Optional[pd.DataFrame] = None,
+) -> Optional[Insight]:
+    """반기 전망 핵심 인사이트 (홈 6개 중 하나로)"""
+    outlook = get_half_outlook(df, latest, df_last_year)
+    if outlook.empty:
+        return None
+    
+    safe = (outlook['안전도'] == '안전').sum()
+    caution = (outlook['안전도'] == '주의').sum()
+    danger = (outlook['안전도'] == '위험').sum()
+    total = len(outlook)
+    
+    half = _get_half(_to_month_int(latest))
+    half_last = _get_half_last_month(half)
+    cur_m = _to_month_int(latest)
+    remaining = half_last - cur_m
+    
+    if danger > 0:
+        category = 'danger'
+        priority = 2
+        worst = outlook[outlook['안전도'] == '위험'].head(3)['센터명'].tolist()
+        action = f'위험 센터 {danger}개({", ".join(worst)})의 잔여 {remaining}개월 집중 관리 필요'
+    elif caution > 0:
+        category = 'warning'
+        priority = 4
+        action = f'주의 센터 {caution}개의 변동형 KPI 회복으로 911점 달성 가능'
+    else:
+        category = 'success'
+        priority = 6
+        action = '현재 페이스 유지 시 전 센터 911점 달성 가능'
+    
+    return Insight(
+        icon='📅',
+        title=f'{half} 마감 전망 ({remaining}개월 남음)',
+        message=(
+            f'현실 전망 기준 **안전 {safe}개 / 주의 {caution}개 / 위험 {danger}개** '
+            f'(전체 {total}개 센터)'
+        ),
+        category=category,
+        priority=priority,
+        action=action,
+    )
+
+
+# ==================== 메인 통합 함수 ====================
+
+def get_all_insights(
+    df: pd.DataFrame,
+    max_count: int = 6,
+    df_last_year: Optional[pd.DataFrame] = None,
+) -> List[Insight]:
+    """홈 화면에 표시할 인사이트 목록 반환"""
+    if df is None or df.empty or '평가월' not in df.columns:
+        return []
+    
+    months = pd.to_datetime(df['평가월'], errors='coerce').dropna().sort_values().unique()
+    if len(months) == 0:
+        return []
+    
+    latest = months[-1]
+    prev = months[-2] if len(months) >= 2 else None
+    
+    candidates = [
+        insight_overall_score(df, latest, prev),
+        insight_danger_zone(df, latest),
+        insight_safety_progress(df, latest),
+        insight_volatile_kpi_drop(df, latest, prev),
+        insight_volatile_kpi_rising(df, latest, prev),
+        insight_target_scenario(df, latest),
+        insight_half_strategy(df, latest, df_last_year),
+    ]
+    
+    valid = [ins for ins in candidates if ins is not None]
+    valid.sort(key=lambda x: x.priority)
+    return valid[:max_count]
+
+
+# ==================== 랭킹 함수 (기존 호환) ====================
+
+def get_ranking_data(df_latest: pd.DataFrame, n: int = 5, mode: str = 'score') -> Dict:
+    """Top/Bottom 랭킹 반환"""
+    if df_latest.empty:
+        return {'top': pd.DataFrame(), 'bottom': pd.DataFrame()}
+    
+    sorted_df = df_latest.sort_values('총점', ascending=False)
+    return {
+        'top': sorted_df.head(n)[['센터명', '총점']].reset_index(drop=True),
+        'bottom': sorted_df.tail(n).sort_values('총점')[['센터명', '총점']].reset_index(drop=True),
+    }
+
+
+def get_change_ranking(df: pd.DataFrame, n: int = 5) -> Dict:
+    """전월 대비 변화 랭킹"""
+    months = pd.to_datetime(df['평가월'], errors='coerce').dropna().sort_values().unique()
+    if len(months) < 2:
+        return {'up': pd.DataFrame(), 'down': pd.DataFrame()}
+    
+    latest, prev = months[-1], months[-2]
+    df_l = _filter_by_month(df, latest)[['센터명', '총점']].rename(columns={'총점': '현재'})
+    df_p = _filter_by_month(df, prev)[['센터명', '총점']].rename(columns={'총점': '전월'})
+    
+    merged = df_l.merge(df_p, on='센터명', how='inner')
+    merged['변화'] = merged['현재'] - merged['전월']
+    
+    return {
+        'up': merged.sort_values('변화', ascending=False).head(n).reset_index(drop=True),
+        'down': merged.sort_values('변화').head(n).reset_index(drop=True),
     }
