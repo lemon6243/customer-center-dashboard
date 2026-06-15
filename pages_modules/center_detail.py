@@ -11,6 +11,14 @@ from utils.styles import ScoreThresholds
 from utils.helpers import safe_unique_centers, get_period_info
 from utils.prediction import calculate_predicted_score
 from components.score_chart import create_kpi_radar_chart
+from utils.simulator import (
+    get_current_kpi_values,
+    calculate_simulated_score,
+    find_minimum_combo,
+    CUMULATIVE_KPIS,
+    VARIABLE_KPIS,
+    TARGET_TOTAL,
+)
 
 
 def show(df: pd.DataFrame, device_type: str = 'desktop'):
