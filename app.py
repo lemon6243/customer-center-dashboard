@@ -92,11 +92,11 @@ def load_latest_data_from_github() -> Tuple[Optional[pd.DataFrame], Optional[pd.
             return None, None
         
         # 가장 최근 연도 = 금년, 그 이전 = 작년
-        current_year = years[-1]
+        current_year = int(years[-1])
         df_current = df_all[df_all['_year'] == current_year].drop(columns=['_year']).copy()
         
         if len(years) >= 2:
-            last_year = years[-2]
+            last_year = int(years[-2])
             df_last = df_all[df_all['_year'] == last_year].drop(columns=['_year']).copy()
         else:
             df_last = None
@@ -144,6 +144,7 @@ def render_page(selected_page: str, df: pd.DataFrame):
     
     device_type = st.session_state.get('device_type', 'desktop')
     
+    # heatmap만 device_type을 받지 않음 (기존 모듈 호환)
     if selected_page == "🌡️ KPI 히트맵":
         page_func(df)
     else:
@@ -194,6 +195,7 @@ def main():
         if st.session_state.get('df') is None:
             _show_welcome()
         else:
+            # 필터된 df가 있으면 그걸, 없으면 원본 사용
             df_to_show = df_filtered if df_filtered is not None else st.session_state['df']
             render_page(selected_page, df_to_show)
             
