@@ -233,12 +233,13 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
     st.markdown("")
 
     # ==================== 5. 빠른 이동 ====================
+        # ==================== 5. 빠른 이동 ====================
     st.markdown("### 🚀 빠른 이동")
-    st.caption(f"{selected_role}님께 추천하는 메뉴입니다.")
+    st.caption("자주 사용하는 메뉴로 바로 이동하세요.")
 
-    nav_items = QUICK_NAV_BY_ROLE.get(selected_role, QUICK_NAV_BY_ROLE["본사 담당자"])
     n_cols_nav = 2 if device_type == "mobile" else 4
-    quick_nav_buttons(nav_items, columns=n_cols_nav)
+    quick_nav_buttons(QUICK_NAV_ITEMS, columns=n_cols_nav)
+
 
 
 # ==================== 헬퍼 함수들 ====================
