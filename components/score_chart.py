@@ -133,7 +133,7 @@ def create_kpi_radar_chart(scores: dict, center_name: str = "") -> go.Figure:
         fill='toself',
         name=center_name,
         line_color=Colors.PRIMARY,
-        fillcolor=f"{Colors.PRIMARY}33",
+         fillcolor="rgba(37, 99, 235, 0.2)",
     ))
     
     fig.update_layout(
