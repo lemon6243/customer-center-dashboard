@@ -17,6 +17,7 @@ from utils.helpers import clean_dataframe
 
 # 페이지 모듈
 from pages_modules import (
+    home,
     sidebar,
     overview,
     trend,
@@ -100,6 +101,7 @@ def load_latest_data_from_github() -> Optional[pd.DataFrame]:
 # ==================== 페이지 라우팅 ====================
 
 PAGE_ROUTER = {
+    "🏠 홈": home.show,
     "📊 전체 현황":   overview.show,
     "📈 월별 추이":   trend.show,
     "🎯 센터별 상세": center_detail.show,
