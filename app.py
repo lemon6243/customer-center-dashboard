@@ -1,7 +1,7 @@
 """
 도시가스 고객센터 성과 대시보드 (개선된 UI)
 완전 무료 - 카드 등록 불필요
-버전 2.0 - 안정성 개선
+버전 2.1 - 센터명 결측 방어 강화
 """
 
 import streamlit as st
@@ -177,6 +177,56 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+# ==================== 공통 헬퍼 함수 ====================
+
+def _safe_unique_centers(df: pd.DataFrame) -> list:
+    """
+    '센터명' 컬럼에서 NaN/공백/'nan' 문자열을 제외하고
+    안전하게 정렬된 고유 센터명 리스트를 반환.
+    
+    sorted()가 float(NaN)과 str을 비교할 때 발생하는
+    TypeError를 원천 차단.
+    """
+    if '센터명' not in df.columns:
+        return []
+    
+    series = df['센터명'].dropna().astype(str).str.strip()
+    series = series[~series.str.lower().isin(['nan', 'none', ''])]
+    return sorted(series.unique().tolist())
+
+
+def _clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    데이터프레임의 '센터명'과 '평가월' 컬럼을 정규화하고
+    잘못된 행을 제거하는 공통 전처리.
+    """
+    if df is None or df.empty:
+        return df
+    
+    if '센터명' not in df.columns or '평가월' not in df.columns:
+        return df
+    
+    before = len(df)
+    
+    # 센터명 정규화
+    df = df.copy()
+    df['센터명'] = df['센터명'].astype(str).str.strip()
+    df = df[~df['센터명'].str.lower().isin(['nan', 'none', ''])]
+    
+    # 평가월 정규화
+    df['평가월'] = pd.to_datetime(df['평가월'], errors='coerce')
+    df = df.dropna(subset=['평가월'])
+    
+    after = len(df)
+    if before != after:
+        st.warning(
+            f"⚠️ 센터명 또는 평가월이 비어있는 {before - after}개 행을 자동으로 제외했습니다."
+        )
+    
+    return df.reset_index(drop=True)
+
+
 # ==================== 유틸리티 함수 ====================
 
 def get_device_type():
@@ -225,16 +275,27 @@ def load_latest_data_from_github():
         missing_cols = [col for col in required_cols if col not in df.columns]
         if missing_cols:
             st.error(f"❌ 필수 컬럼 누락: {missing_cols}")
+            st.info(
+                "💡 엑셀 파일의 첫 행(헤더)에 다음 컬럼이 포함되어야 합니다:\n"
+                "   - **센터명** (각 행마다 센터 이름)\n"
+                "   - **평가월** (예: 2026-05-01)"
+            )
             return None
         
-        # 날짜 변환
-        if '평가월' in df.columns:
-            df['평가월'] = pd.to_datetime(df['평가월'], errors='coerce')
-            
-            # 날짜 변환 실패 확인
-            if df['평가월'].isna().all():
-                st.error("❌ 평가월 데이터를 날짜로 변환할 수 없습니다.")
-                return None
+        # ▼ 핵심 방어 로직: 센터명/평가월 결측 행 자동 제거
+        df = _clean_dataframe(df)
+        
+        if df.empty:
+            st.error(
+                "❌ 유효한 데이터가 없습니다. "
+                "엑셀 파일의 '센터명' 컬럼에 실제 센터명이 입력되어 있는지 확인해주세요."
+            )
+            return None
+        
+        # 날짜 변환 실패 확인 (이미 _clean_dataframe에서 dropna 했지만 한번 더 체크)
+        if df['평가월'].isna().all():
+            st.error("❌ 평가월 데이터를 날짜로 변환할 수 없습니다.")
+            return None
         
         # 점수 컬럼 확인 및 계산
         required_score_cols = [
@@ -743,7 +804,7 @@ def show_overview(df: pd.DataFrame):
             )
         
         with cols[1]:
-            achievement_rate = target_achieved / total_centers * 100
+            achievement_rate = target_achieved / total_centers * 100 if total_centers > 0 else 0
             st.metric(
                 label="🎯 목표 달성",
                 value=f"{target_achieved}/{total_centers}",
@@ -771,6 +832,7 @@ def show_overview(df: pd.DataFrame):
         st.divider()
         
         if period_month < 6:
+            period_text = f"상반기 {period_month}월" if is_first_half else f"하반기 {period_month}월"
             st.info(f"""
             💡 **개선된 예측 로직 안내**
             - 현재: {period_text} (진행률 {period_month/6*100:.1f}%)
@@ -891,11 +953,18 @@ def show_trend_analysis(df: pd.DataFrame):
     try:
         st.subheader("🎯 센터별 추이 비교")
         
+        # ▼ 안전한 센터명 리스트 사용
+        all_centers = _safe_unique_centers(df)
+        
+        if not all_centers:
+            st.warning("⚠️ 분석 가능한 센터 데이터가 없습니다.")
+            return
+        
         # 전체 센터를 기본값으로 설정
         centers = st.multiselect(
             "비교할 센터 선택",
-            options=sorted(df['센터명'].unique()),
-            default=sorted(df['센터명'].unique()),
+            options=all_centers,
+            default=all_centers,
             help="비교하고 싶은 센터를 선택하세요. 기본값은 전체 센터입니다."
         )
         
@@ -983,10 +1052,17 @@ def show_center_detail(df: pd.DataFrame):
     try:
         device = get_device_type()
         
+        # ▼ 안전한 센터명 리스트 사용
+        all_centers = _safe_unique_centers(df)
+        
+        if not all_centers:
+            st.warning("⚠️ 분석 가능한 센터 데이터가 없습니다.")
+            return
+        
         if device == 'mobile':
             center_name = st.selectbox(
                 "센터 선택",
-                options=sorted(df['센터명'].unique())
+                options=all_centers
             )
         else:
             col1, col2 = st.columns([2, 1])
@@ -994,10 +1070,14 @@ def show_center_detail(df: pd.DataFrame):
             with col1:
                 center_name = st.selectbox(
                     "센터 선택",
-                    options=sorted(df['센터명'].unique())
+                    options=all_centers
                 )
         
         df_center = df[df['센터명'] == center_name].sort_values('평가월')
+        
+        if df_center.empty:
+            st.warning("⚠️ 선택한 센터의 데이터가 없습니다.")
+            return
         
         latest = df_center.iloc[-1]
         
@@ -1039,10 +1119,11 @@ def show_center_detail(df: pd.DataFrame):
             with cols[2]:
                 latest_month_df = df[df['평가월'] == df['평가월'].max()]
                 rank = (latest_month_df['총점'] >= latest['총점']).sum()
+                total_centers = len(all_centers)
                 st.metric(
                     label="전체 순위",
                     value=f"{rank}위",
-                    delta=f"/ {df['센터명'].nunique()}개"
+                    delta=f"/ {total_centers}개"
                 )
         
         if col_count >= 4:
@@ -1254,11 +1335,20 @@ def main():
                 
                 st.success("✅ 데이터 로드됨")
                 
+                # ▼ 안전한 센터 수 계산
+                center_count = len(_safe_unique_centers(df))
+                
+                try:
+                    min_month = df['평가월'].min().strftime('%Y-%m') if df['평가월'].notna().any() else '-'
+                    max_month = df['평가월'].max().strftime('%Y-%m') if df['평가월'].notna().any() else '-'
+                except Exception:
+                    min_month, max_month = '-', '-'
+                
                 st.info(f"""
                 📌 **현재 데이터**
                 - 총 행수: {len(df):,}
-                - 센터 수: {df['센터명'].nunique()}개
-                - 평가 기간: {df['평가월'].min().strftime('%Y-%m')} ~ {df['평가월'].max().strftime('%Y-%m')}
+                - 센터 수: {center_count}개
+                - 평가 기간: {min_month} ~ {max_month}
                 - 최종 업데이트: GitHub 최신 버전
                 """)
             else:
@@ -1279,41 +1369,48 @@ def main():
                 with st.spinner("📊 데이터 처리 중..."):
                     try:
                         df_raw = load_cumulative_data(uploaded_file)
-                        is_valid, message = validate_cumulative_data(df_raw)
                         
-                        if is_valid:
-                            st.success("✅ 데이터 검증 완료")
-                            df_scored = calculate_scores(df_raw)
-                            st.session_state['df'] = df_scored
-                            
-                            st.info(f"""
-                            📊 **처리 완료**
-                            - 총 {len(df_scored):,}행
-                            - {df_scored['센터명'].nunique()}개 센터
-                            - {df_scored['평가월'].nunique()}개월 데이터
-                            """)
-                            
-                            excel_data = convert_df_to_excel(df_scored)
-                            
-                            if excel_data:
-                                st.download_button(
-                                    label="💾 처리된 데이터 다운로드",
-                                    data=excel_data,
-                                    file_name=f"latest_data_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                    help="이 파일을 data/latest_data.xlsx로 저장 후 GitHub에 업로드하세요"
-                                )
-                                
-                                st.warning("""
-                                ⚠️ **다음 단계:**
-                                1. 위 버튼으로 파일 다운로드
-                                2. `data/latest_data.xlsx`로 저장
-                                3. GitHub에 커밋 & 푸시
-                                """)
+                        # ▼ df_raw가 None인 경우 방어
+                        if df_raw is None:
+                            st.error("❌ 데이터 로딩에 실패했습니다. 파일 형식을 확인해주세요.")
                         else:
-                            st.error("❌ 데이터 검증 실패")
-                            for msg in message:
-                                st.error(msg)
+                            is_valid, message = validate_cumulative_data(df_raw)
+                            
+                            if is_valid:
+                                st.success("✅ 데이터 검증 완료")
+                                df_scored = calculate_scores(df_raw)
+                                st.session_state['df'] = df_scored
+                                
+                                scored_center_count = len(_safe_unique_centers(df_scored))
+                                
+                                st.info(f"""
+                                📊 **처리 완료**
+                                - 총 {len(df_scored):,}행
+                                - {scored_center_count}개 센터
+                                - {df_scored['평가월'].nunique()}개월 데이터
+                                """)
+                                
+                                excel_data = convert_df_to_excel(df_scored)
+                                
+                                if excel_data:
+                                    st.download_button(
+                                        label="💾 처리된 데이터 다운로드",
+                                        data=excel_data,
+                                        file_name=f"latest_data_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        help="이 파일을 data/latest_data.xlsx로 저장 후 GitHub에 업로드하세요"
+                                    )
+                                    
+                                    st.warning("""
+                                    ⚠️ **다음 단계:**
+                                    1. 위 버튼으로 파일 다운로드
+                                    2. `data/latest_data.xlsx`로 저장
+                                    3. GitHub에 커밋 & 푸시
+                                    """)
+                            else:
+                                st.error("❌ 데이터 검증 실패")
+                                for msg in message:
+                                    st.error(msg)
                             
                     except Exception as e:
                         st.error(f"❌ 오류 발생: {e}")
@@ -1329,7 +1426,11 @@ def main():
                 
                 st.subheader("🔍 필터")
                 
-                months = sorted(df['평가월'].dt.to_period('M').unique())
+                try:
+                    months = sorted(df['평가월'].dropna().dt.to_period('M').unique())
+                except Exception:
+                    months = []
+                
                 selected_months = st.multiselect(
                     "평가월 선택",
                     options=months,
@@ -1337,7 +1438,8 @@ def main():
                     format_func=lambda x: x.strftime('%Y년 %m월')
                 )
                 
-                centers = sorted(df['센터명'].unique())
+                # ▼ 핵심 수정: 안전한 센터명 리스트 사용
+                centers = _safe_unique_centers(df)
                 selected_centers = st.multiselect(
                     "센터 선택",
                     options=centers,
