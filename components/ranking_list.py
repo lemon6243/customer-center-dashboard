@@ -45,7 +45,6 @@ def ranking_list(
         st.info(f"{title}: 표시할 데이터가 없습니다.")
         return
 
-    # 카드 헤더
     rows_html = ""
     for i, (_, row) in enumerate(df_sorted.iterrows(), 1):
         name = str(row[name_col])
@@ -69,7 +68,7 @@ def ranking_list(
             elif i == 3:
                 rank_badge = "🥉"
             else:
-                rank_badge = f"<span style='display:inline-block; width:22px; height:22px; border-radius:50%; background:{Colors.BG_CARD}; border:1px solid #e2e8f0; text-align:center; font-size:12px; font-weight:600; color:{Colors.TEXT_SECONDARY};'>{i}</span>"
+                rank_badge = f"<span style='display:inline-block; width:22px; height:22px; border-radius:50%; background:{Colors.BG_CARD}; border:1px solid {Colors.BORDER}; text-align:center; font-size:12px; font-weight:600; color:{Colors.TEXT_SUB};'>{i}</span>"
             rank_html = f'<span style="width:30px; text-align:center;">{rank_badge}</span>'
 
         # 값 포맷
@@ -81,11 +80,11 @@ def ranking_list(
         rows_html += f"""
         <div style="
             display:flex; align-items:center; justify-content:space-between;
-            padding:10px 12px; border-bottom:1px solid #f1f5f9;
+            padding:10px 12px; border-bottom:1px solid {Colors.BG_GRAY};
         ">
             <div style="display:flex; align-items:center; gap:10px;">
                 {rank_html}
-                <span style="color:{Colors.TEXT_PRIMARY}; font-size:14px; font-weight:500;">{name}</span>
+                <span style="color:{Colors.TEXT_MAIN}; font-size:14px; font-weight:500;">{name}</span>
             </div>
             <span style="color:{value_color}; font-size:15px; font-weight:700;">{value_str}</span>
         </div>
@@ -94,7 +93,7 @@ def ranking_list(
     html = f"""
     <div style="
         background: {Colors.BG_CARD};
-        border: 1px solid #e2e8f0;
+        border: 1px solid {Colors.BORDER};
         border-radius: 12px;
         padding: 16px 8px 8px 8px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
@@ -106,7 +105,7 @@ def ranking_list(
             display:flex; align-items:center; gap:8px;
         ">
             <span style="font-size:18px;">{icon}</span>
-            <span style="color:{Colors.TEXT_PRIMARY}; font-size:15px; font-weight:700;">{title}</span>
+            <span style="color:{Colors.TEXT_MAIN}; font-size:15px; font-weight:700;">{title}</span>
         </div>
         {rows_html}
     </div>
@@ -153,19 +152,19 @@ def change_ranking_list(
 
         current_html = ""
         if current is not None and pd.notna(current):
-            current_html = f'<span style="color:{Colors.TEXT_SECONDARY}; font-size:12px; margin-left:6px;">(현재 {current:,.1f}점)</span>'
+            current_html = f'<span style="color:{Colors.TEXT_SUB}; font-size:12px; margin-left:6px;">(현재 {current:,.1f}점)</span>'
 
-        rank_badge = f"<span style='display:inline-block; width:22px; height:22px; border-radius:50%; background:{Colors.BG_CARD}; border:1px solid #e2e8f0; text-align:center; font-size:12px; font-weight:600; color:{Colors.TEXT_SECONDARY};'>{i}</span>"
+        rank_badge = f"<span style='display:inline-block; width:22px; height:22px; border-radius:50%; background:{Colors.BG_CARD}; border:1px solid {Colors.BORDER}; text-align:center; font-size:12px; font-weight:600; color:{Colors.TEXT_SUB};'>{i}</span>"
 
         rows_html += f"""
         <div style="
             display:flex; align-items:center; justify-content:space-between;
-            padding:10px 12px; border-bottom:1px solid #f1f5f9;
+            padding:10px 12px; border-bottom:1px solid {Colors.BG_GRAY};
         ">
             <div style="display:flex; align-items:center; gap:10px;">
                 <span style="width:30px; text-align:center;">{rank_badge}</span>
                 <span>
-                    <span style="color:{Colors.TEXT_PRIMARY}; font-size:14px; font-weight:500;">{name}</span>
+                    <span style="color:{Colors.TEXT_MAIN}; font-size:14px; font-weight:500;">{name}</span>
                     {current_html}
                 </span>
             </div>
@@ -178,7 +177,7 @@ def change_ranking_list(
     html = f"""
     <div style="
         background: {Colors.BG_CARD};
-        border: 1px solid #e2e8f0;
+        border: 1px solid {Colors.BORDER};
         border-radius: 12px;
         padding: 16px 8px 8px 8px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
@@ -190,7 +189,7 @@ def change_ranking_list(
             display:flex; align-items:center; gap:8px;
         ">
             <span style="font-size:18px;">{icon}</span>
-            <span style="color:{Colors.TEXT_PRIMARY}; font-size:15px; font-weight:700;">{title}</span>
+            <span style="color:{Colors.TEXT_MAIN}; font-size:15px; font-weight:700;">{title}</span>
         </div>
         {rows_html}
     </div>
