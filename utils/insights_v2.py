@@ -1,11 +1,12 @@
 """
-자동 인사이트 생성 v2.2
+자동 인사이트 생성 v2.3
 - 911점 절대평가 기준 (반기별 총점, 상/하반기 평균 911점 합격)
 - 변동형 KPI 잔변동 무시 (MIN_CHANGE_PCT)
 - 안전점검 누적 진척도 검증 (관대화)
 - 911점 도달 가능 센터 시나리오
 - 반기 전망 (낙관/현실 두 시나리오)
 - 작년 동기 비교 (달성률 기준)
+- 페이스 미달 랭킹 (911점 도달 위험 센터)  ⭐ v2.3 신규
 """
 
 from dataclasses import dataclass, field
@@ -38,7 +39,7 @@ NEAR_TARGET_HIGH = 910
 DROP_STREAK_THRESHOLD = 2
 
 # 통합 센터 (작년 비교 제외)
-MERGED_CENTERS = {'퇴계원/별내', '별내/퇴계원'}  # 실제 표기명 확인 필요
+MERGED_CENTERS = {'퇴계원/별내', '별내/퇴계원'}
 
 # 작년 KPI 만점 (구조 변경 대응)
 LAST_YEAR_KPI_MAX = {
@@ -348,7 +349,7 @@ def insight_target_scenario(df: pd.DataFrame, latest) -> Optional[Insight]:
     )
 
 
-# ==================== 신규: 반기 전망 함수 ====================
+# ==================== 반기 전망 함수 ====================
 
 def predict_half_total(
     df: pd.DataFrame,
@@ -412,21 +413,17 @@ def predict_half_total(
             avg_pace = 0
         predicted_realistic = current_score + (avg_pace * remaining)
     else:
+        avg_pace = 0
         predicted_realistic = current_score
     
     # 낙관 예측: 911점 도달을 위한 필요 페이스 vs 실제 페이스 중 더 큰 값
-    # = 안전점검 정상 진척(매월 +15%p × 안전점검 만점 비중) + 변동KPI 유지
     if remaining > 0:
-        # 단순 추정: 남은 월 × 평균 15점 증가 (안전점검 정상 페이스 가정)
         optimistic_pace = max(avg_pace if len(df_c) >= 2 else 0, 80 / max(remaining, 1))
         predicted_optimistic = current_score + (optimistic_pace * remaining)
         # 상한: 1000점
         predicted_optimistic = min(predicted_optimistic, PERFECT_TOTAL)
     else:
         predicted_optimistic = current_score
-    
-    # 감점 누적 반영 (이미 총점에 반영되어 있으므로 추가 조정 불필요, 단 잔여월에도 동일 감점 유지)
-    # 페이스 기반 예측에는 이미 감점 영향이 녹아 있음
     
     # 작년 동기 참고값
     last_year_reference = None
@@ -589,7 +586,7 @@ def get_all_insights(
     return valid[:max_count]
 
 
-# ==================== 랭킹 함수 (기존 호환) ====================
+# ==================== 랭킹 함수 ====================
 
 def get_ranking_data(df_latest: pd.DataFrame, n: int = 5, mode: str = 'score') -> Dict:
     """Top/Bottom 랭킹 반환"""
@@ -604,7 +601,7 @@ def get_ranking_data(df_latest: pd.DataFrame, n: int = 5, mode: str = 'score') -
 
 
 def get_change_ranking(df: pd.DataFrame, n: int = 5) -> Dict:
-    """전월 대비 변화 랭킹"""
+    """전월 대비 변화 랭킹 (상승 모멘텀 중심)"""
     months = pd.to_datetime(df['평가월'], errors='coerce').dropna().sort_values().unique()
     if len(months) < 2:
         empty = pd.DataFrame()
@@ -627,7 +624,7 @@ def get_change_ranking(df: pd.DataFrame, n: int = 5) -> Dict:
     merged['변화량'] = merged['총점_현재'] - merged['총점_전월']
     merged['총점'] = merged['총점_현재']  # current_col 기본값과 일치
     
-    # 호환용 별칭 (혹시 다른 곳에서 다른 이름 사용 시 대비)
+    # 호환용 별칭
     merged['변화'] = merged['변화량']
     merged['점수변화'] = merged['변화량']
     merged['현재점수'] = merged['총점_현재']
@@ -641,3 +638,56 @@ def get_change_ranking(df: pd.DataFrame, n: int = 5) -> Dict:
         'rising': rising, 'falling': falling,
     }
 
+
+def get_pace_lag_ranking(
+    df: pd.DataFrame,
+    n: int = 5,
+    df_last_year: Optional[pd.DataFrame] = None,
+) -> pd.DataFrame:
+    """
+    페이스 미달 Top N 센터 (911점 도달 위험)
+    
+    - predict_half_total을 활용해 각 센터의 현실 전망 계산
+    - 목표(911점) 대비 부족분이 큰 순서로 정렬
+    - 이미 911점을 넘긴 센터 + 현실 전망이 911점 이상인 센터는 제외
+    
+    Returns: DataFrame [센터명, 총점, 예상점수, 부족분, 변화량]
+    """
+    if df is None or df.empty:
+        return pd.DataFrame()
+    
+    latest = _safe_latest_month(df)
+    if latest is None:
+        return pd.DataFrame()
+    
+    centers = df['센터명'].dropna().unique()
+    rows = []
+    
+    for center in centers:
+        result = predict_half_total(df, center, latest, df_last_year)
+        if result is None:
+            continue
+        
+        # 이미 911점 넘긴 센터 제외
+        if result['current_score'] >= TARGET_TOTAL:
+            continue
+        # 현실 전망도 911점 이상이면 제외 (안전 센터)
+        if result['predicted_realistic'] >= TARGET_TOTAL:
+            continue
+        
+        rows.append({
+            '센터명': result['center'],
+            '총점': round(result['current_score'], 1),         # current_col 기본값
+            '예상점수': round(result['predicted_realistic'], 1),
+            '부족분': round(result['gap_to_target'], 1),       # 911 - 예상
+            '변화량': round(result['gap_to_target'], 1),       # 컴포넌트 호환용
+        })
+    
+    if not rows:
+        return pd.DataFrame()
+    
+    result_df = pd.DataFrame(rows)
+    # 부족분이 큰 순서 (911점에서 멀수록 위험)
+    result_df = result_df.sort_values('부족분', ascending=False).head(n).reset_index(drop=True)
+    
+    return result_df
