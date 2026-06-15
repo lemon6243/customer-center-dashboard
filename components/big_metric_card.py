@@ -34,7 +34,7 @@ def big_metric_card(
             color = Colors.DANGER if is_positive else Colors.SUCCESS
         delta_html = f'<div style="color:{color}; font-size:14px; font-weight:600; margin-top:4px;">{delta}</div>'
     elif delta:
-        delta_html = f'<div style="color:{Colors.TEXT_SECONDARY}; font-size:14px; margin-top:4px;">{delta}</div>'
+        delta_html = f'<div style="color:{Colors.TEXT_SUB}; font-size:14px; margin-top:4px;">{delta}</div>'
     else:
         delta_html = ""
 
@@ -43,7 +43,7 @@ def big_metric_card(
     html = f"""
     <div {help_attr} style="
         background: {Colors.BG_CARD};
-        border: 1px solid {Colors.BORDER if hasattr(Colors, 'BORDER') else '#e2e8f0'};
+        border: 1px solid {Colors.BORDER};
         border-left: 4px solid {Colors.PRIMARY};
         border-radius: 12px;
         padding: 20px 24px;
@@ -52,9 +52,9 @@ def big_metric_card(
     ">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
             <span style="font-size:20px;">{icon}</span>
-            <span style="color:{Colors.TEXT_SECONDARY}; font-size:13px; font-weight:500;">{label}</span>
+            <span style="color:{Colors.TEXT_SUB}; font-size:13px; font-weight:500;">{label}</span>
         </div>
-        <div style="color:{Colors.TEXT_PRIMARY}; font-size:32px; font-weight:700; line-height:1.2;">
+        <div style="color:{Colors.TEXT_MAIN}; font-size:32px; font-weight:700; line-height:1.2;">
             {value}
         </div>
         {delta_html}
@@ -86,7 +86,7 @@ def score_big_card(label: str, score: float, target: float = 911, icon: str = "ð
     html = f"""
     <div style="
         background: {Colors.BG_CARD};
-        border: 1px solid #e2e8f0;
+        border: 1px solid {Colors.BORDER};
         border-left: 4px solid {color};
         border-radius: 12px;
         padding: 20px 24px;
@@ -95,11 +95,11 @@ def score_big_card(label: str, score: float, target: float = 911, icon: str = "ð
     ">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
             <span style="font-size:20px;">{icon}</span>
-            <span style="color:{Colors.TEXT_SECONDARY}; font-size:13px; font-weight:500;">{label}</span>
+            <span style="color:{Colors.TEXT_SUB}; font-size:13px; font-weight:500;">{label}</span>
         </div>
         <div style="color:{color}; font-size:32px; font-weight:700; line-height:1.2;">
             {score:,.1f}
-            <span style="font-size:14px; color:{Colors.TEXT_SECONDARY}; font-weight:400;">
+            <span style="font-size:14px; color:{Colors.TEXT_SUB}; font-weight:400;">
                 / {target:,.0f} ({pct:.1f}%)
             </span>
         </div>
@@ -119,12 +119,12 @@ def count_big_card(label: str, count: int, total: int = None, icon: str = "ðŸ“"
     total_html = ""
     if total is not None and total > 0:
         pct = count / total * 100
-        total_html = f'<span style="font-size:14px; color:{Colors.TEXT_SECONDARY}; font-weight:400;"> / {total}{suffix} ({pct:.1f}%)</span>'
+        total_html = f'<span style="font-size:14px; color:{Colors.TEXT_SUB}; font-weight:400;"> / {total}{suffix} ({pct:.1f}%)</span>'
 
     html = f"""
     <div style="
         background: {Colors.BG_CARD};
-        border: 1px solid #e2e8f0;
+        border: 1px solid {Colors.BORDER};
         border-left: 4px solid {color};
         border-radius: 12px;
         padding: 20px 24px;
@@ -133,7 +133,7 @@ def count_big_card(label: str, count: int, total: int = None, icon: str = "ðŸ“"
     ">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
             <span style="font-size:20px;">{icon}</span>
-            <span style="color:{Colors.TEXT_SECONDARY}; font-size:13px; font-weight:500;">{label}</span>
+            <span style="color:{Colors.TEXT_SUB}; font-size:13px; font-weight:500;">{label}</span>
         </div>
         <div style="color:{color}; font-size:32px; font-weight:700; line-height:1.2;">
             {count}{suffix}{total_html}
