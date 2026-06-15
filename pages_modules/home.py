@@ -1,8 +1,7 @@
 """
 🏠 홈 (Executive Dashboard)
-- 임원/관리자 30초 파악용
-- 사용자 역할별(센터장/본사/평가) 진입점
 - 핵심 KPI + 자동 인사이트 + Top/Bottom 랭킹 + 빠른 이동
+- 모든 사용자(센터장/본사/평가)에게 동일한 화면 제공
 """
 import streamlit as st
 import pandas as pd
@@ -21,7 +20,7 @@ from components.ranking_list import ranking_list, change_ranking_list
 from components.quick_nav import quick_nav_buttons
 
 
-# ==================== 역할별 빠른 이동 메뉴 ====================
+# ==================== 빠른 이동 메뉴 (전체 공통) ====================
 
 QUICK_NAV_ITEMS = [
     {"icon": "📊", "label": "전체 현황", "page_key": "📊 전체 현황", "desc": "24개 센터 한눈에"},
@@ -32,8 +31,6 @@ QUICK_NAV_ITEMS = [
     {"icon": "📊", "label": "데이터 분석", "page_key": "📊 데이터 분석", "desc": "상관관계·이상치"},
     {"icon": "📋", "label": "원본 데이터", "page_key": "📋 원본 데이터", "desc": "전체 데이터 표"},
 ]
-}
-
 
 
 # ==================== 메인 함수 ====================
@@ -41,8 +38,7 @@ QUICK_NAV_ITEMS = [
 def show(df: pd.DataFrame, device_type: str = "desktop"):
     """홈 페이지 메인 함수"""
 
-    # ----- 헤더 -----
-    st.markdown('<div class="main-header">🏠 도시가스 고객센터 종합 대시보드</div>', unsafe_allow_html=True)
+    # 헤더는 app.py에서 공통 출력하므로 생략
 
     if df is None or df.empty:
         st.warning("⚠️ 표시할 데이터가 없습니다. 사이드바에서 데이터를 확인해주세요.")
@@ -50,6 +46,7 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     # ----- 최신 월/전월 데이터 추출 -----
     df_latest, df_prev, latest_month, prev_month = _get_latest_and_prev(df)
+
 
     if df_latest is None or df_latest.empty:
         st.warning("⚠️ 최신 월 데이터를 추출할 수 없습니다.")
