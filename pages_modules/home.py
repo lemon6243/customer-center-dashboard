@@ -58,13 +58,6 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
         st.warning("⚠️ 표시할 데이터가 없습니다. 사이드바에서 데이터를 확인해주세요.")
         return
 
-    # ----- 역할 선택 -----
-    st.markdown("##### 👤 어떤 역할로 보시나요?")
-    selected_role = role_selector(default="본사 담당자")
-    st.session_state['user_role'] = selected_role
-
-    st.markdown("---")
-
     # ----- 최신 월/전월 데이터 추출 -----
     df_latest, df_prev, latest_month, prev_month = _get_latest_and_prev(df)
 
