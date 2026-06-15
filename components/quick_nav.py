@@ -31,7 +31,7 @@ def quick_nav_buttons(items: list, columns: int = 4):
             page_key = item.get('page_key', '')
 
             if st.button(label_text, key=f"quicknav_{idx}_{page_key}", use_container_width=True):
-                st.session_state['selected_page'] = page_key
+                st.session_state['current_page'] = page_key
                 st.rerun()
 
             if desc:
