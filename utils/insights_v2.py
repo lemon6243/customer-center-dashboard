@@ -661,11 +661,7 @@ def get_pace_lag_ranking(
     """
     페이스 미달 Top N 센터 (911점 도달 위험)
     
-    - predict_half_total을 활용해 각 센터의 현실 전망 계산
-    - 목표(911점) 대비 부족분이 큰 순서로 정렬
-    - 이미 911점을 넘긴 센터 + 현실 전망이 911점 이상인 센터는 제외
-    
-    Returns: DataFrame [센터명, 총점, 예상점수, 부족분, 변화량]
+    ⭐ 최신월 활성 센터만 대상
     """
     if df is None or df.empty:
         return pd.DataFrame()
@@ -674,18 +670,20 @@ def get_pace_lag_ranking(
     if latest is None:
         return pd.DataFrame()
     
-    centers = df['센터명'].dropna().unique()
-    rows = []
+    # ⭐ 최신월 활성 센터만
+    df_latest = _filter_by_month(df, latest)
+    if df_latest.empty:
+        return pd.DataFrame()
+    active_centers = df_latest['센터명'].dropna().unique()
     
-    for center in centers:
+    rows = []
+    for center in active_centers:
         result = predict_half_total(df, center, latest, df_last_year)
         if result is None:
             continue
         
-        # 이미 911점 넘긴 센터 제외
         if result['current_score'] >= TARGET_TOTAL:
             continue
-        # 현실 전망도 911점 이상이면 제외
         if result['predicted_realistic'] >= TARGET_TOTAL:
             continue
         
