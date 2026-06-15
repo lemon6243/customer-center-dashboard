@@ -1,12 +1,12 @@
 """
 도시가스 고객센터 성과 대시보드
-버전 3.0 - 모듈화 리뉴얼 (Phase 2 진행 중)
+버전 3.1 - Phase 3 (작년 데이터 자동 분리 로드)
 """
 
 import streamlit as st
 import pandas as pd
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 # 로컬 모듈
 from score_calculator import calculate_scores
@@ -17,7 +17,7 @@ from utils.helpers import clean_dataframe
 
 # 페이지 모듈
 from pages_modules import (
-    sidebar,            # ⭐ 추가 (NameError 해결)
+    sidebar,
     home,
     performance,
     center_detail,
@@ -43,57 +43,82 @@ apply_global_styles()
 # ==================== 데이터 로딩 ====================
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def load_latest_data_from_github() -> Optional[pd.DataFrame]:
-    """GitHub의 latest_data.xlsx 자동 로드"""
+def load_latest_data_from_github() -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+    """
+    GitHub의 latest_data.xlsx 자동 로드 후 금년/작년 데이터 분리
     
+    Returns:
+        (df_current_year, df_last_year)
+        - df_current_year: 금년(가장 최근 연도) 데이터
+        - df_last_year: 작년 데이터 (없으면 None)
+    """
     data_path = "data/latest_data.xlsx"
     
     if not os.path.exists(data_path):
-        return None
+        return None, None
     
     try:
-        # 파일 크기 확인
         if os.path.getsize(data_path) == 0:
             st.error("❌ 데이터 파일이 비어있습니다.")
-            return None
+            return None, None
         
         # 엑셀 읽기
-        df = pd.read_excel(data_path, engine='openpyxl')
+        df_all = pd.read_excel(data_path, engine='openpyxl')
         
-        if df.empty:
+        if df_all.empty:
             st.error("❌ 데이터가 비어있습니다.")
-            return None
+            return None, None
         
         # 필수 컬럼 확인
         required_cols = ['센터명', '평가월']
-        missing = [c for c in required_cols if c not in df.columns]
+        missing = [c for c in required_cols if c not in df_all.columns]
         if missing:
             st.error(f"❌ 필수 컬럼 누락: {missing}")
-            return None
+            return None, None
         
-        # 데이터 정리 (NaN, 잘못된 값 제거)
-        df = clean_dataframe(df)
+        # 데이터 정리
+        df_all = clean_dataframe(df_all)
         
-        if df.empty:
+        if df_all.empty:
             st.error("❌ 유효한 데이터가 없습니다.")
-            return None
+            return None, None
         
-        # 점수 컬럼 자동 계산
+        # ⭐ 연도 기준으로 금년/작년 자동 분리
+        df_all['_year'] = pd.to_datetime(df_all['평가월'], errors='coerce').dt.year
+        
+        years = sorted(df_all['_year'].dropna().unique())
+        if not years:
+            st.error("❌ 평가월에서 연도를 추출할 수 없습니다.")
+            return None, None
+        
+        # 가장 최근 연도 = 금년, 그 이전 = 작년
+        current_year = years[-1]
+        df_current = df_all[df_all['_year'] == current_year].drop(columns=['_year']).copy()
+        
+        if len(years) >= 2:
+            last_year = years[-2]
+            df_last = df_all[df_all['_year'] == last_year].drop(columns=['_year']).copy()
+        else:
+            df_last = None
+        
+        # 금년 점수 컬럼 자동 계산 (없으면)
         required_scores = [
             '안전점검_점수', '중점고객_점수', '사용계약_점수',
             '상담응대_점수', '상담기여_점수', '만족도_점수', '목표달성여부'
         ]
-        if any(c not in df.columns for c in required_scores):
-            df = calculate_scores(df)
+        if any(c not in df_current.columns for c in required_scores):
+            df_current = calculate_scores(df_current)
         
-        return df
+        # 작년 데이터는 점수 재계산하지 않음 (구조가 다르므로 총점 그대로 사용)
+        
+        return df_current, df_last
         
     except Exception as e:
         st.error(f"❌ 데이터 로드 실패: {e}")
         import traceback
         with st.expander("🔍 상세 오류 정보"):
             st.code(traceback.format_exc())
-        return None
+        return None, None
 
 
 # ==================== 페이지 라우팅 ====================
@@ -119,7 +144,6 @@ def render_page(selected_page: str, df: pd.DataFrame):
     
     device_type = st.session_state.get('device_type', 'desktop')
     
-    # heatmap만 device_type을 받지 않음 (기존 모듈 호환)
     if selected_page == "🌡️ KPI 히트맵":
         page_func(df)
     else:
@@ -141,11 +165,22 @@ def main():
         # 초기 데이터 로드 (세션에 없으면)
         if 'df' not in st.session_state or st.session_state.get('df') is None:
             with st.spinner("📊 데이터 로드 중..."):
-                df_loaded = load_latest_data_from_github()
-                st.session_state['df'] = df_loaded
+                df_current, df_last_year = load_latest_data_from_github()
                 
-                if df_loaded is not None:
-                    st.success("✅ 데이터 로드 완료!", icon="✅")
+                st.session_state['df'] = df_current
+                st.session_state['df_last_year'] = df_last_year  # ⭐ 작년 데이터 저장
+                
+                if df_current is not None:
+                    if df_last_year is not None and not df_last_year.empty:
+                        st.success(
+                            f"✅ 데이터 로드 완료! (금년 {len(df_current)}행 + 작년 {len(df_last_year)}행)",
+                            icon="✅"
+                        )
+                    else:
+                        st.success(
+                            f"✅ 데이터 로드 완료! (금년 {len(df_current)}행, 작년 데이터 없음)",
+                            icon="✅"
+                        )
                 else:
                     st.info("💡 저장된 데이터가 없습니다. 사이드바에서 새 데이터를 업로드해주세요.")
         
@@ -159,7 +194,6 @@ def main():
         if st.session_state.get('df') is None:
             _show_welcome()
         else:
-            # 필터된 df가 있으면 그걸, 없으면 원본 사용
             df_to_show = df_filtered if df_filtered is not None else st.session_state['df']
             render_page(selected_page, df_to_show)
             
@@ -185,6 +219,9 @@ def _show_welcome():
         **또는**
         
         `data/latest_data.xlsx` 파일이 있다면 자동으로 로드됩니다.
+        
+        💡 **작년 데이터 포함 시**: 같은 파일에 작년 데이터(2025년 등)를 함께 넣으면 
+        반기 전망에서 작년 동기와 비교할 수 있습니다.
         """)
 
 
