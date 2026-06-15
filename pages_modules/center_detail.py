@@ -117,7 +117,8 @@ def _show_center_metrics(latest, predicted_score, period_info,
                 value="달성" if achieved else "미달성",
                 delta="✅" if achieved else "❌"
             )
-    
+    # show() 함수 마지막에 호출
+    _render_simulation_section(df, selected_center)
     # 데스크톱/태블릿에서만 추가 카드 표시
     if col_count >= 3:
         # 3) 전체 순위
