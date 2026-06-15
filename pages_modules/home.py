@@ -1,6 +1,6 @@
 """
 🏠 홈 (Executive Dashboard)
-- 핵심 KPI + 자동 인사이트 + Top/Bottom 랭킹 + 빠른 이동
+- 핵심 KPI + 자동 인사이트 + Top/Bottom 랭킹 + 반기 전망 + 빠른 이동
 - 모든 사용자(센터장/본사/평가)에게 동일한 화면 제공
 """
 import streamlit as st
@@ -14,6 +14,7 @@ from utils.insights_v2 import (
     get_all_insights,
     get_ranking_data,
     get_change_ranking,
+    get_half_outlook,
 )
 from components.big_metric_card import score_big_card, count_big_card, big_metric_card
 from components.ranking_list import ranking_list, change_ranking_list
@@ -31,7 +32,6 @@ QUICK_NAV_ITEMS = [
 ]
 
 
-
 # ==================== 메인 함수 ====================
 
 def show(df: pd.DataFrame, device_type: str = "desktop"):
@@ -46,10 +46,12 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
     # ----- 최신 월/전월 데이터 추출 -----
     df_latest, df_prev, latest_month, prev_month = _get_latest_and_prev(df)
 
-
     if df_latest is None or df_latest.empty:
         st.warning("⚠️ 최신 월 데이터를 추출할 수 없습니다.")
         return
+
+    # 작년 데이터 (선택사항, session_state에 있으면 사용)
+    df_last_year = st.session_state.get('df_last_year', None)
 
     # 평가월/진행률 헤더
     _render_period_header(df, latest_month)
@@ -117,6 +119,8 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
         gap = max_s - min_s
     else:
         gap = 0
+        max_s = 0
+        min_s = 0
 
     with cols[3 % n_cols]:
         big_metric_card(
@@ -132,7 +136,7 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
     # ==================== 2. 자동 인사이트 박스 ====================
     st.markdown("### 💡 이번 달 주요 인사이트")
 
-    insights = get_all_insights(df, max_count=5)
+    insights = get_all_insights(df, max_count=6, df_last_year=df_last_year)
     if insights:
         _render_insights(insights, device_type)
     else:
@@ -140,7 +144,7 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     st.markdown("")
 
-       # ==================== 3. 센터 랭킹 ====================
+    # ==================== 3. 센터 랭킹 ====================
     st.markdown("### 🏆 센터 랭킹")
 
     # ----- 3-1) 점수 순위 (Top 5 / Bottom 5) -----
@@ -191,16 +195,20 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
         change_rank = get_change_ranking(df, n=5)
 
+        # 키 이름 호환 (rising/up, falling/down)
+        rising_df = change_rank.get("rising", change_rank.get("up", pd.DataFrame()))
+        falling_df = change_rank.get("falling", change_rank.get("down", pd.DataFrame()))
+
         if device_type == "mobile":
             change_ranking_list(
-                change_rank.get("rising", pd.DataFrame()),
+                rising_df,
                 title="📈 상승 Top 5",
                 icon="📈",
                 ascending=False,
             )
             st.markdown("")
             change_ranking_list(
-                change_rank.get("falling", pd.DataFrame()),
+                falling_df,
                 title="📉 하락 Top 5",
                 icon="📉",
                 ascending=True,
@@ -209,14 +217,14 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
             col3, col4 = st.columns(2)
             with col3:
                 change_ranking_list(
-                    change_rank.get("rising", pd.DataFrame()),
+                    rising_df,
                     title="📈 상승 Top 5",
                     icon="📈",
                     ascending=False,
                 )
             with col4:
                 change_ranking_list(
-                    change_rank.get("falling", pd.DataFrame()),
+                    falling_df,
                     title="📉 하락 Top 5",
                     icon="📉",
                     ascending=True,
@@ -225,7 +233,6 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
         st.info("📅 전월 데이터가 없어 변화 랭킹을 표시할 수 없습니다.")
 
     st.markdown("")
-
 
     # ==================== 4. 분포 + 추이 차트 ====================
     st.markdown("### 📈 분포 및 추이")
@@ -243,14 +250,18 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     st.markdown("")
 
-    # ==================== 5. 빠른 이동 ====================
-        # ==================== 5. 빠른 이동 ====================
+    # ==================== 5. 반기 마감 전망 (신규) ====================
+    st.markdown("### 📅 반기 마감 전망")
+    _render_half_outlook(df, df_last_year, device_type)
+
+    st.markdown("")
+
+    # ==================== 6. 빠른 이동 ====================
     st.markdown("### 🚀 빠른 이동")
     st.caption("자주 사용하는 메뉴로 바로 이동하세요.")
 
     n_cols_nav = 2 if device_type == "mobile" else 4
     quick_nav_buttons(QUICK_NAV_ITEMS, columns=n_cols_nav)
-
 
 
 # ==================== 헬퍼 함수들 ====================
@@ -293,36 +304,27 @@ def _render_period_header(df: pd.DataFrame, latest_month: str):
 
         n_centers = len(safe_unique_centers(df))
 
-        html = f"""
-        <div style="
-            background: {Colors.PRIMARY_LIGHT};
-            border-left: 4px solid {Colors.PRIMARY};
-            padding: 12px 18px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-        ">
-            <div>
-                <span style="color:{Colors.TEXT_SUB}; font-size:13px;">현재 평가월</span>
-                <span style="color:{Colors.PRIMARY}; font-size:18px; font-weight:700; margin-left:8px;">
-                    {latest_month}
-                </span>
-                <span style="color:{Colors.TEXT_SUB}; font-size:13px; margin-left:12px;">
-                    · {half} 진행률 <b style="color:{Colors.TEXT_MAIN};">{progress:.0f}%</b>
-                </span>
-                <span style="color:{Colors.TEXT_SUB}; font-size:13px; margin-left:12px;">
-                    · 대상 센터 <b style="color:{Colors.TEXT_MAIN};">{n_centers}개</b>
-                </span>
-            </div>
-            <div style="color:{Colors.TEXT_SUB}; font-size:12px;">
-                🎯 목표: {ScoreThresholds.TARGET}점 ({target_text})
-            </div>
-        </div>
-        """
+        html = (
+            f'<div style="background:{Colors.PRIMARY_LIGHT};'
+            f'border-left:4px solid {Colors.PRIMARY};'
+            f'padding:12px 18px;border-radius:8px;margin-bottom:16px;'
+            f'display:flex;justify-content:space-between;align-items:center;'
+            f'flex-wrap:wrap;gap:12px;">'
+            f'<div>'
+            f'<span style="color:{Colors.TEXT_SUB};font-size:13px;">현재 평가월</span>'
+            f'<span style="color:{Colors.PRIMARY};font-size:18px;font-weight:700;margin-left:8px;">{latest_month}</span>'
+            f'<span style="color:{Colors.TEXT_SUB};font-size:13px;margin-left:12px;">'
+            f'· {half} 진행률 <b style="color:{Colors.TEXT_MAIN};">{progress:.0f}%</b>'
+            f'</span>'
+            f'<span style="color:{Colors.TEXT_SUB};font-size:13px;margin-left:12px;">'
+            f'· 대상 센터 <b style="color:{Colors.TEXT_MAIN};">{n_centers}개</b>'
+            f'</span>'
+            f'</div>'
+            f'<div style="color:{Colors.TEXT_SUB};font-size:12px;">'
+            f'🎯 목표: {ScoreThresholds.TARGET}점 ({target_text})'
+            f'</div>'
+            f'</div>'
+        )
         st.markdown(html, unsafe_allow_html=True)
     except Exception:
         st.caption(f"📅 현재 평가월: {latest_month}")
@@ -387,7 +389,6 @@ def _render_insights(insights, device_type: str):
                 f'</div>'
             )
             st.markdown(html, unsafe_allow_html=True)
-
 
 
 def _render_distribution_chart(df_latest: pd.DataFrame):
@@ -481,3 +482,129 @@ def _render_trend_chart(df: pd.DataFrame):
         **PLOTLY_LAYOUT,
     )
     st.plotly_chart(fig, use_container_width=True)
+
+
+def _render_half_outlook(df: pd.DataFrame, df_last_year, device_type: str):
+    """반기 마감 전망 섹션 (신규)"""
+    try:
+        outlook = get_half_outlook(df, df_last_year=df_last_year)
+    except Exception as e:
+        st.warning(f"반기 전망 계산 중 오류: {e}")
+        return
+
+    if outlook is None or outlook.empty:
+        st.info("반기 전망을 계산할 데이터가 부족합니다.")
+        return
+
+    # 요약 카드 3개
+    safe_cnt = int((outlook['안전도'] == '안전').sum())
+    caution_cnt = int((outlook['안전도'] == '주의').sum())
+    danger_cnt = int((outlook['안전도'] == '위험').sum())
+    total_cnt = len(outlook)
+
+    n_cols = 1 if device_type == "mobile" else 3
+    cols = st.columns(n_cols)
+
+    summary_cards = [
+        {
+            "label": "✅ 안전",
+            "sublabel": "911점 달성 예상",
+            "count": safe_cnt,
+            "color": Colors.SUCCESS,
+        },
+        {
+            "label": "⚠️ 주의",
+            "sublabel": "895~910점 예상",
+            "count": caution_cnt,
+            "color": Colors.WARNING,
+        },
+        {
+            "label": "🚨 위험",
+            "sublabel": "895점 미만 예상",
+            "count": danger_cnt,
+            "color": Colors.DANGER,
+        },
+    ]
+
+    for idx, card in enumerate(summary_cards):
+        with cols[idx % n_cols]:
+            html = (
+                f'<div style="background:{Colors.BG_CARD};'
+                f'border:1px solid {Colors.BORDER};'
+                f'border-left:4px solid {card["color"]};'
+                f'border-radius:10px;padding:16px 18px;margin-bottom:10px;'
+                f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="color:{Colors.TEXT_SUB};font-size:13px;font-weight:600;">'
+                f'{card["label"]}'
+                f'</div>'
+                f'<div style="color:{Colors.TEXT_LIGHT if hasattr(Colors, "TEXT_LIGHT") else Colors.TEXT_SUB};font-size:11px;margin-bottom:6px;">'
+                f'{card["sublabel"]}'
+                f'</div>'
+                f'<div style="font-size:32px;font-weight:700;color:{card["color"]};line-height:1.1;">'
+                f'{card["count"]}<span style="font-size:16px;font-weight:500;color:{Colors.TEXT_SUB};margin-left:4px;">/ {total_cnt}개</span>'
+                f'</div>'
+                f'</div>'
+            )
+            st.markdown(html, unsafe_allow_html=True)
+
+    st.markdown("")
+
+    # 상세 표 (expander)
+    with st.expander("📋 센터별 반기 전망 상세 보기", expanded=False):
+        display_cols = ['센터명', '현재점수', '낙관전망', '현실전망', '목표차이', '안전도', '통합여부']
+        
+        # 작년 참고값이 있으면 컬럼 추가
+        if '작년참고' in outlook.columns and outlook['작년참고'].notna().any():
+            display_cols.insert(4, '작년참고')
+        
+        # 현재 감점이 있으면 표시
+        if '현재감점' in outlook.columns and (outlook['현재감점'].fillna(0) != 0).any():
+            display_cols.append('현재감점')
+
+        # 안전도 정렬 순서: 위험 → 주의 → 안전
+        safety_order = {'위험': 0, '주의': 1, '안전': 2}
+        outlook_sorted = outlook.copy()
+        outlook_sorted['_sort'] = outlook_sorted['안전도'].map(safety_order).fillna(99)
+        outlook_sorted = outlook_sorted.sort_values(['_sort', '현실전망'], ascending=[True, True])
+
+        column_config = {
+            '현재점수': st.column_config.NumberColumn(format="%.1f점"),
+            '낙관전망': st.column_config.NumberColumn(
+                format="%.1f점",
+                help="911점 목표 페이스 달성 시 예상 반기 최종 점수"
+            ),
+            '현실전망': st.column_config.NumberColumn(
+                format="%.1f점",
+                help="최근 3개월 평균 페이스 유지 시 예상 반기 최종 점수"
+            ),
+            '목표차이': st.column_config.NumberColumn(
+                format="%+.1f점",
+                help="911점 - 현실전망"
+            ),
+        }
+        
+        if '작년참고' in display_cols:
+            column_config['작년참고'] = st.column_config.NumberColumn(
+                format="%.1f점",
+                help="작년 동기 점수 (구조 변경으로 직접 비교 부적합, 참고용)"
+            )
+        
+        if '현재감점' in display_cols:
+            column_config['현재감점'] = st.column_config.NumberColumn(
+                format="%.0f점",
+                help="현재 누적 감점 (반기 마지막까지 지속 적용)"
+            )
+
+        st.dataframe(
+            outlook_sorted[display_cols],
+            use_container_width=True,
+            hide_index=True,
+            column_config=column_config,
+        )
+
+        st.caption(
+            "💡 **현실 전망**: 최근 3개월 평균 증가 페이스 유지 시 예상 점수 / "
+            "**낙관 전망**: 911점 목표 페이스 달성 시 예상 점수 / "
+            "**작년참고**: 작년 동기 최종점수 (구조 변경 — 안전점검 600→550점, 사용계약 신설 — 으로 직접 비교 부적합, 참고용) / "
+            "**통합**: 4월 통합된 센터는 작년 직접 비교 제외"
+        )
