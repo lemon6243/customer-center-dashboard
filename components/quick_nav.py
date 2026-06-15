@@ -30,14 +30,13 @@ def quick_nav_buttons(items: list, columns: int = 4):
             desc = item.get('desc', '')
             page_key = item.get('page_key', '')
 
-            # Streamlit 기본 버튼 사용 (rerun 자동)
             if st.button(label_text, key=f"quicknav_{idx}_{page_key}", use_container_width=True):
                 st.session_state['selected_page'] = page_key
                 st.rerun()
 
             if desc:
                 st.markdown(
-                    f'<div style="color:{Colors.TEXT_SECONDARY}; font-size:12px; text-align:center; margin-top:-8px; margin-bottom:8px;">{desc}</div>',
+                    f'<div style="color:{Colors.TEXT_SUB}; font-size:12px; text-align:center; margin-top:-8px; margin-bottom:8px;">{desc}</div>',
                     unsafe_allow_html=True
                 )
 
@@ -47,7 +46,7 @@ def role_selector(default: str = "본사 담당자"):
     역할 선택기 (홈 상단)
     
     Returns:
-        선택된 역할 문자열
+        선택된 역할 문자열 (이모지 제외)
     """
     roles = ["🏢 본사 담당자", "👔 센터장/팀장", "📋 평가 담당자"]
 
