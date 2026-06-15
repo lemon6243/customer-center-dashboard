@@ -1,6 +1,6 @@
 """
 도시가스 고객센터 성과 대시보드
-버전 3.0 - 모듈화 리뉴얼 (Phase 1 완료)
+버전 3.0 - 모듈화 리뉴얼 (Phase 2 진행 중)
 """
 
 import streamlit as st
@@ -17,12 +17,13 @@ from utils.helpers import clean_dataframe
 
 # 페이지 모듈
 from pages_modules import (
+    sidebar,            # ⭐ 추가 (NameError 해결)
     home,
-    performance,        # ⭐ 신규
+    performance,
     center_detail,
     risk,
     heatmap,
-    deep_analysis,      # ⭐ 신규
+    deep_analysis,
 )
 
 
@@ -99,11 +100,11 @@ def load_latest_data_from_github() -> Optional[pd.DataFrame]:
 
 PAGE_ROUTER = {
     "🏠 홈": home.show,
-    "📊 성과 분석": performance.show,        # ⭐ 변경
-    "🎯 센터 진단": center_detail.show,       # ⭐ 변경 (메뉴명만)
+    "📊 성과 분석": performance.show,
+    "🎯 센터 진단": center_detail.show,
     "⚠️ 위험 관리": risk.show,
     "🌡️ KPI 히트맵": heatmap.show,
-    "🔬 심화 분석": deep_analysis.show,       # ⭐ 변경
+    "🔬 심화 분석": deep_analysis.show,
 }
 
 
