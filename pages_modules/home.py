@@ -23,14 +23,13 @@ from components.quick_nav import quick_nav_buttons
 # ==================== 빠른 이동 메뉴 (전체 공통) ====================
 
 QUICK_NAV_ITEMS = [
-    {"icon": "📊", "label": "전체 현황", "page_key": "📊 전체 현황", "desc": "24개 센터 한눈에"},
-    {"icon": "📈", "label": "월별 추이", "page_key": "📈 월별 추이", "desc": "5개월 점수 변화"},
-    {"icon": "🎯", "label": "센터별 상세", "page_key": "🎯 센터별 상세", "desc": "센터별 진단"},
-    {"icon": "⚠️", "label": "위험 관리", "page_key": "⚠️ 위험 관리", "desc": "주의/위험 센터"},
+    {"icon": "📊", "label": "성과 분석",  "page_key": "📊 성과 분석",  "desc": "전체 현황 + 추이"},
+    {"icon": "🎯", "label": "센터 진단",  "page_key": "🎯 센터 진단",  "desc": "센터별 상세 진단"},
+    {"icon": "⚠️", "label": "위험 관리",  "page_key": "⚠️ 위험 관리",  "desc": "주의/위험 센터"},
     {"icon": "🌡️", "label": "KPI 히트맵", "page_key": "🌡️ KPI 히트맵", "desc": "센터×KPI 매트릭스"},
-    {"icon": "📊", "label": "데이터 분석", "page_key": "📊 데이터 분석", "desc": "상관관계·이상치"},
-    {"icon": "📋", "label": "원본 데이터", "page_key": "📋 원본 데이터", "desc": "전체 데이터 표"},
+    {"icon": "🔬", "label": "심화 분석",  "page_key": "🔬 심화 분석",  "desc": "분석 + 원본"},
 ]
+
 
 
 # ==================== 메인 함수 ====================
