@@ -9,7 +9,7 @@ import pandas as pd
 from utils.helpers import convert_df_to_excel, get_filename_with_timestamp
 
 
-def show(df: pd.DataFrame):
+def show(df: pd.DataFrame, device_type: str = 'desktop'):
     """원본 데이터 페이지 메인 함수"""
     
     st.subheader("📋 원본 데이터")
