@@ -15,6 +15,7 @@ from utils.insights_v2 import (
     get_ranking_data,
     get_change_ranking,
     get_half_outlook,
+    get_pace_lag_ranking,  # ⭐ 추가
 )
 from components.big_metric_card import score_big_card, count_big_card, big_metric_card
 from components.ranking_list import ranking_list, change_ranking_list
@@ -187,52 +188,45 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
                 use_score_color=True,
             )
 
-    # ----- 3-2) 전월 대비 변화 (상승 / 하락) -----
+        # ----- 3-2) 전월 대비 동향 (상승 모멘텀 + 페이스 미달) -----
     st.markdown("")
 
     if df_prev is not None and not df_prev.empty:
-        st.markdown(f"##### 📊 전월 대비 변화 (vs {prev_month})")
+        st.markdown(f"##### 📊 전월 대비 동향 (vs {prev_month})")
 
         change_rank = get_change_ranking(df, n=5)
-
-        # 키 이름 호환 (rising/up, falling/down)
         rising_df = change_rank.get("rising", change_rank.get("up", pd.DataFrame()))
-        falling_df = change_rank.get("falling", change_rank.get("down", pd.DataFrame()))
+
+        # 페이스 미달 Top 5 (911점 도달 위험)
+        pace_lag_df = get_pace_lag_ranking(df, n=5, df_last_year=df_last_year)
 
         if device_type == "mobile":
+            # 모바일: 세로 배치
             change_ranking_list(
                 rising_df,
-                title="📈 상승 Top 5",
+                title="📈 상승 모멘텀 Top 5",
                 icon="📈",
                 ascending=False,
             )
             st.markdown("")
-            change_ranking_list(
-                falling_df,
-                title="📉 하락 Top 5",
-                icon="📉",
-                ascending=True,
-            )
+            _render_pace_lag_list(pace_lag_df)
         else:
+            # 데스크톱: 2열 배치
             col3, col4 = st.columns(2)
             with col3:
                 change_ranking_list(
                     rising_df,
-                    title="📈 상승 Top 5",
+                    title="📈 상승 모멘텀 Top 5",
                     icon="📈",
                     ascending=False,
                 )
             with col4:
-                change_ranking_list(
-                    falling_df,
-                    title="📉 하락 Top 5",
-                    icon="📉",
-                    ascending=True,
-                )
+                _render_pace_lag_list(pace_lag_df)
     else:
-        st.info("📅 전월 데이터가 없어 변화 랭킹을 표시할 수 없습니다.")
+        st.info("📅 전월 데이터가 없어 변화 분석을 표시할 수 없습니다.")
 
     st.markdown("")
+
 
     # ==================== 4. 분포 + 추이 차트 ====================
     st.markdown("### 📈 분포 및 추이")
@@ -390,6 +384,84 @@ def _render_insights(insights, device_type: str):
             )
             st.markdown(html, unsafe_allow_html=True)
 
+def _render_pace_lag_list(pace_lag_df: pd.DataFrame):
+    """페이스 미달 Top 5 (911점 도달 위험 센터) 렌더링"""
+    title = "⚠️ 페이스 미달 Top 5"
+    
+    if pace_lag_df is None or pace_lag_df.empty:
+        # 위험 센터가 없으면 긍정 메시지
+        html = (
+            f'<div style="background:{Colors.BG_CARD};border:1px solid {Colors.BORDER};'
+            f'border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">'
+            f'<div style="padding:0 0 12px 0;border-bottom:2px solid {Colors.SUCCESS};'
+            f'margin-bottom:12px;display:flex;align-items:center;gap:8px;">'
+            f'<span style="font-size:18px;">✅</span>'
+            f'<span style="color:{Colors.TEXT_MAIN};font-size:15px;font-weight:700;">'
+            f'페이스 미달 센터 없음</span>'
+            f'</div>'
+            f'<div style="color:{Colors.TEXT_SUB};font-size:13px;line-height:1.6;padding:8px 4px;">'
+            f'🎉 현재 페이스를 유지하면 모든 센터가 911점에 도달할 것으로 예상됩니다.'
+            f'</div>'
+            f'</div>'
+        )
+        st.markdown(html, unsafe_allow_html=True)
+        return
+
+    rows_html = ""
+    for i, (_, row) in enumerate(pace_lag_df.iterrows(), 1):
+        name = str(row['센터명'])
+        current = row['총점']
+        predicted = row['예상점수']
+        gap = row['부족분']
+
+        # 순위 배지 (1~3위는 메달, 나머지는 숫자)
+        if i == 1:
+            badge = "🥇"
+        elif i == 2:
+            badge = "🥈"
+        elif i == 3:
+            badge = "🥉"
+        else:
+            badge = (
+                f'<span style="display:inline-block;width:22px;height:22px;'
+                f'border-radius:50%;background:{Colors.BG_CARD};'
+                f'border:1px solid {Colors.BORDER};text-align:center;'
+                f'font-size:12px;font-weight:600;color:{Colors.TEXT_SUB};">{i}</span>'
+            )
+
+        rows_html += (
+            f'<div style="padding:10px 12px;border-bottom:1px solid {Colors.BG_GRAY};">'
+            f'<div style="display:flex;align-items:center;justify-content:space-between;">'
+            f'<div style="display:flex;align-items:center;gap:10px;">'
+            f'<span style="width:30px;text-align:center;display:inline-block;">{badge}</span>'
+            f'<span style="color:{Colors.TEXT_MAIN};font-size:14px;font-weight:600;">{name}</span>'
+            f'</div>'
+            f'<span style="color:{Colors.DANGER};font-size:15px;font-weight:700;">'
+            f'-{gap:.1f}점</span>'
+            f'</div>'
+            f'<div style="margin-left:40px;margin-top:4px;color:{Colors.TEXT_SUB};font-size:12px;">'
+            f'현재 <b style="color:{Colors.TEXT_MAIN};">{current:.1f}</b> → '
+            f'예상 <b style="color:{Colors.WARNING};">{predicted:.1f}</b> '
+            f'<span style="color:{Colors.TEXT_SUB};">(목표 911점 대비)</span>'
+            f'</div>'
+            f'</div>'
+        )
+
+    html = (
+        f'<div style="background:{Colors.BG_CARD};border:1px solid {Colors.BORDER};'
+        f'border-radius:12px;padding:16px 8px 8px 8px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">'
+        f'<div style="padding:0 12px 12px 12px;border-bottom:2px solid {Colors.DANGER};'
+        f'margin-bottom:4px;display:flex;align-items:center;gap:8px;">'
+        f'<span style="font-size:18px;">⚠️</span>'
+        f'<span style="color:{Colors.TEXT_MAIN};font-size:15px;font-weight:700;">{title}</span>'
+        f'<span style="color:{Colors.TEXT_SUB};font-size:12px;margin-left:auto;">'
+        f'911점 도달 위험</span>'
+        f'</div>'
+        f'{rows_html}'
+        f'</div>'
+    )
+
+    st.markdown(html, unsafe_allow_html=True)
 
 def _render_distribution_chart(df_latest: pd.DataFrame):
     """점수 구간별 분포 (등급별 도넛)"""
