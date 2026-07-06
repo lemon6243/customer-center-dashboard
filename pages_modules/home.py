@@ -564,8 +564,16 @@ def _render_trend_chart(df: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
+# home.py 내 _render_half_outlook 함수 전체 교체
+
 def _render_half_outlook(df: pd.DataFrame, df_last_year, device_type: str):
-    """반기 마감 전망 섹션 (신규)"""
+    """반기 마감 전망 / 반기 최종 결과 섹션"""
+    from utils.insights_v2 import _safe_latest_month, _is_half_end, _get_half, _to_month_int
+    
+    latest_month = _safe_latest_month(df)
+    is_final = _is_half_end(latest_month) if latest_month is not None else False
+    half_label = _get_half(_to_month_int(latest_month)) if latest_month is not None else ""
+    
     try:
         outlook = get_half_outlook(df, df_last_year=df_last_year)
     except Exception as e:
@@ -573,10 +581,92 @@ def _render_half_outlook(df: pd.DataFrame, df_last_year, device_type: str):
         return
 
     if outlook is None or outlook.empty:
-        st.info("반기 전망을 계산할 데이터가 부족합니다.")
+        st.info("반기 데이터를 계산할 수 없습니다.")
         return
 
-    # 요약 카드 3개
+    # ⭐ 반기 마지막 달: 최종 결과 카드 (달성/근접미달/미달)
+    if is_final:
+        achieved_cnt = int((outlook['안전도'] == '달성').sum())
+        near_cnt = int((outlook['안전도'] == '근접미달').sum())
+        fail_cnt = int((outlook['안전도'] == '미달').sum())
+        total_cnt = len(outlook)
+
+        n_cols = 1 if device_type == "mobile" else 3
+        cols = st.columns(n_cols)
+
+        summary_cards = [
+            {"label": "✅ 달성", "sublabel": "911점 이상",
+             "count": achieved_cnt, "color": Colors.SUCCESS},
+            {"label": "⚠️ 근접 미달", "sublabel": "895~910점",
+             "count": near_cnt, "color": Colors.WARNING},
+            {"label": "🚨 미달", "sublabel": "895점 미만",
+             "count": fail_cnt, "color": Colors.DANGER},
+        ]
+
+        for idx, card in enumerate(summary_cards):
+            with cols[idx % n_cols]:
+                html = (
+                    f'<div style="background:{Colors.BG_CARD};'
+                    f'border:1px solid {Colors.BORDER};'
+                    f'border-left:4px solid {card["color"]};'
+                    f'border-radius:10px;padding:16px 18px;margin-bottom:10px;'
+                    f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                    f'<div style="color:{Colors.TEXT_SUB};font-size:13px;font-weight:600;">'
+                    f'{card["label"]}</div>'
+                    f'<div style="color:{Colors.TEXT_SUB};font-size:11px;margin-bottom:6px;">'
+                    f'{card["sublabel"]}</div>'
+                    f'<div style="font-size:32px;font-weight:700;color:{card["color"]};line-height:1.1;">'
+                    f'{card["count"]}<span style="font-size:16px;font-weight:500;'
+                    f'color:{Colors.TEXT_SUB};margin-left:4px;">/ {total_cnt}개</span>'
+                    f'</div>'
+                    f'</div>'
+                )
+                st.markdown(html, unsafe_allow_html=True)
+
+        st.markdown("")
+
+        # 최종 결과 상세 표
+        with st.expander(f"📋 센터별 {half_label} 최종 결과 상세 보기", expanded=False):
+            display_cols = ['센터명', '현재점수', '목표차이', '안전도', '통합여부']
+            if '작년참고' in outlook.columns and outlook['작년참고'].notna().any():
+                display_cols.insert(3, '작년참고')
+            if '현재감점' in outlook.columns and (outlook['현재감점'].fillna(0) != 0).any():
+                display_cols.append('현재감점')
+
+            safety_order = {'미달': 0, '근접미달': 1, '달성': 2}
+            outlook_sorted = outlook.copy()
+            outlook_sorted['_sort'] = outlook_sorted['안전도'].map(safety_order).fillna(99)
+            outlook_sorted = outlook_sorted.sort_values(['_sort', '현재점수'], ascending=[True, True])
+
+            column_config = {
+                '현재점수': st.column_config.NumberColumn(
+                    f"{half_label} 최종점수", format="%.1f점"
+                ),
+                '목표차이': st.column_config.NumberColumn(
+                    format="%+.1f점", help="911점 - 최종점수"
+                ),
+            }
+            if '작년참고' in display_cols:
+                column_config['작년참고'] = st.column_config.NumberColumn(
+                    format="%.1f점",
+                    help="작년 동기 점수 (구조 변경으로 참고용)"
+                )
+
+            st.dataframe(
+                outlook_sorted[display_cols],
+                use_container_width=True,
+                hide_index=True,
+                column_config=column_config,
+            )
+
+            st.caption(
+                f"💡 **{half_label} 최종 결과 확정** — "
+                f"다음 반기는 0점부터 새로 시작됩니다. "
+                f"작년참고는 구조 변경(안전점검 600→550점, 사용계약 신설)으로 직접 비교 부적합."
+            )
+        return
+
+    # ⭐ 진행 중: 기존 예측 전망 로직 유지
     safe_cnt = int((outlook['안전도'] == '안전').sum())
     caution_cnt = int((outlook['안전도'] == '주의').sum())
     danger_cnt = int((outlook['안전도'] == '위험').sum())
@@ -586,24 +676,12 @@ def _render_half_outlook(df: pd.DataFrame, df_last_year, device_type: str):
     cols = st.columns(n_cols)
 
     summary_cards = [
-        {
-            "label": "✅ 안전",
-            "sublabel": "911점 달성 예상",
-            "count": safe_cnt,
-            "color": Colors.SUCCESS,
-        },
-        {
-            "label": "⚠️ 주의",
-            "sublabel": "895~910점 예상",
-            "count": caution_cnt,
-            "color": Colors.WARNING,
-        },
-        {
-            "label": "🚨 위험",
-            "sublabel": "895점 미만 예상",
-            "count": danger_cnt,
-            "color": Colors.DANGER,
-        },
+        {"label": "✅ 안전", "sublabel": "911점 달성 예상",
+         "count": safe_cnt, "color": Colors.SUCCESS},
+        {"label": "⚠️ 주의", "sublabel": "895~910점 예상",
+         "count": caution_cnt, "color": Colors.WARNING},
+        {"label": "🚨 위험", "sublabel": "895점 미만 예상",
+         "count": danger_cnt, "color": Colors.DANGER},
     ]
 
     for idx, card in enumerate(summary_cards):
@@ -615,13 +693,12 @@ def _render_half_outlook(df: pd.DataFrame, df_last_year, device_type: str):
                 f'border-radius:10px;padding:16px 18px;margin-bottom:10px;'
                 f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
                 f'<div style="color:{Colors.TEXT_SUB};font-size:13px;font-weight:600;">'
-                f'{card["label"]}'
-                f'</div>'
-                f'<div style="color:{Colors.TEXT_LIGHT if hasattr(Colors, "TEXT_LIGHT") else Colors.TEXT_SUB};font-size:11px;margin-bottom:6px;">'
-                f'{card["sublabel"]}'
-                f'</div>'
+                f'{card["label"]}</div>'
+                f'<div style="color:{Colors.TEXT_SUB};font-size:11px;margin-bottom:6px;">'
+                f'{card["sublabel"]}</div>'
                 f'<div style="font-size:32px;font-weight:700;color:{card["color"]};line-height:1.1;">'
-                f'{card["count"]}<span style="font-size:16px;font-weight:500;color:{Colors.TEXT_SUB};margin-left:4px;">/ {total_cnt}개</span>'
+                f'{card["count"]}<span style="font-size:16px;font-weight:500;'
+                f'color:{Colors.TEXT_SUB};margin-left:4px;">/ {total_cnt}개</span>'
                 f'</div>'
                 f'</div>'
             )
@@ -629,19 +706,13 @@ def _render_half_outlook(df: pd.DataFrame, df_last_year, device_type: str):
 
     st.markdown("")
 
-    # 상세 표 (expander)
     with st.expander("📋 센터별 반기 전망 상세 보기", expanded=False):
         display_cols = ['센터명', '현재점수', '낙관전망', '현실전망', '목표차이', '안전도', '통합여부']
-        
-        # 작년 참고값이 있으면 컬럼 추가
         if '작년참고' in outlook.columns and outlook['작년참고'].notna().any():
             display_cols.insert(4, '작년참고')
-        
-        # 현재 감점이 있으면 표시
         if '현재감점' in outlook.columns and (outlook['현재감점'].fillna(0) != 0).any():
             display_cols.append('현재감점')
 
-        # 안전도 정렬 순서: 위험 → 주의 → 안전
         safety_order = {'위험': 0, '주의': 1, '안전': 2}
         outlook_sorted = outlook.copy()
         outlook_sorted['_sort'] = outlook_sorted['안전도'].map(safety_order).fillna(99)
@@ -658,21 +729,17 @@ def _render_half_outlook(df: pd.DataFrame, df_last_year, device_type: str):
                 help="최근 3개월 평균 페이스 유지 시 예상 반기 최종 점수"
             ),
             '목표차이': st.column_config.NumberColumn(
-                format="%+.1f점",
-                help="911점 - 현실전망"
+                format="%+.1f점", help="911점 - 현실전망"
             ),
         }
-        
         if '작년참고' in display_cols:
             column_config['작년참고'] = st.column_config.NumberColumn(
                 format="%.1f점",
-                help="작년 동기 점수 (구조 변경으로 직접 비교 부적합, 참고용)"
+                help="작년 동기 점수 (구조 변경 참고용)"
             )
-        
         if '현재감점' in display_cols:
             column_config['현재감점'] = st.column_config.NumberColumn(
-                format="%.0f점",
-                help="현재 누적 감점 (반기 마지막까지 지속 적용)"
+                format="%.0f점", help="현재 누적 감점"
             )
 
         st.dataframe(
@@ -685,6 +752,6 @@ def _render_half_outlook(df: pd.DataFrame, df_last_year, device_type: str):
         st.caption(
             "💡 **현실 전망**: 최근 3개월 평균 증가 페이스 유지 시 예상 점수 / "
             "**낙관 전망**: 911점 목표 페이스 달성 시 예상 점수 / "
-            "**작년참고**: 작년 동기 최종점수 (구조 변경 — 안전점검 600→550점, 사용계약 신설 — 으로 직접 비교 부적합, 참고용) / "
+            "**작년참고**: 참고용 / "
             "**통합**: 4월 통합된 센터는 작년 직접 비교 제외"
         )
