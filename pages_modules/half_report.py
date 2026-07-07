@@ -1,9 +1,9 @@
 """
-상반기 보고 페이지 (v1.2)
+상반기 보고 페이지 (v1.3)
 - 2026년 상반기 평가 결과 요약
 - 전년(2025년) 상반기 대비 비교 (달성률 기준)
 - 통합센터(퇴계원/별내) 및 권역조정 센터(구리) 안내
-- 세션에서 df_last_year를 가져와 병합 처리
+- 전년 데이터에 점수 컬럼이 없어도 원본 비율에서 달성률 자동 계산
 """
 
 import io
@@ -19,7 +19,6 @@ from utils.styles import Colors
 # 상수
 # =========================================================
 
-# 2026년 KPI 배점 (총 1000점)
 KPI_MAX_THIS_YEAR = {
     '안전점검': 550,
     '중점고객': 100,
@@ -29,7 +28,6 @@ KPI_MAX_THIS_YEAR = {
     '만족도': 100,
 }
 
-# 2025년 KPI 배점 (총 1000점, 사용계약 없음)
 KPI_MAX_LAST_YEAR = {
     '안전점검': 600,
     '중점고객': 100,
@@ -38,7 +36,7 @@ KPI_MAX_LAST_YEAR = {
     '만족도': 100,
 }
 
-# KPI명 → 데이터프레임 점수 컬럼 매핑
+# KPI명 → 점수 컬럼 (점수화 완료된 경우 우선 사용)
 KPI_SCORE_COLS = {
     '안전점검': '안전점검_점수',
     '중점고객': '중점고객_점수',
@@ -48,16 +46,21 @@ KPI_SCORE_COLS = {
     '만족도': '만족도_점수',
 }
 
-# 통합센터 (2026년 상·하반기 모두 유예, 단 결과는 참고로 표시)
-INTEGRATED_CENTERS_THIS_YEAR = {'퇴계원/별내', '별내/퇴계원'}
+# KPI명 → 원본 비율 컬럼 (점수 컬럼이 없을 때 fallback)
+KPI_RATE_COLS = {
+    '안전점검': '안전점검실점검율',
+    '중점고객': '중점고객안전점검율',
+    '사용계약': '사용계약율',
+    '상담응대': '상담응대율',
+    '상담기여': '상담기여도',
+    '만족도': '고객서비스만족도',
+}
 
-# 전년(2025년) 통합센터 (2025년 유예 → YoY 비교에서 제외)
+INTEGRATED_CENTERS_THIS_YEAR = {'퇴계원/별내', '별내/퇴계원'}
 INTEGRATED_CENTERS_LAST_YEAR = {
     '금곡/경기동부', '경기동부/금곡',
     '덕소/양평', '양평/덕소',
 }
-
-# 권역조정 센터 (안전점검은 기존 관리세대 기준으로 평가)
 ADJUSTED_CENTERS = {
     '구리': '2026년 4월 권역조정으로 행정동 흡수, 상·하반기 모두 안전점검은 기존 관리세대 기준으로 평가',
 }
@@ -65,7 +68,7 @@ ADJUSTED_CENTERS = {
 TARGET_SCORE = 911
 PERFECT_SCORE = 1000
 NEAR_MISS_MIN = 895
-ANNUAL_PASS_TOTAL = 1822  # 연간 패스 기준 (평균 911 x 2)
+ANNUAL_PASS_TOTAL = 1822
 
 
 # =========================================================
@@ -73,8 +76,6 @@ ANNUAL_PASS_TOTAL = 1822  # 연간 패스 기준 (평균 911 x 2)
 # =========================================================
 
 def show(df: pd.DataFrame, device_type: str = 'desktop'):
-    """상반기 보고 페이지 메인"""
-
     st.markdown("## 📑 상반기 평가 결과 보고")
     st.caption("2026년 상반기(1~6월) 고객센터 평가 결과 요약 리포트")
     st.markdown("---")
@@ -83,14 +84,13 @@ def show(df: pd.DataFrame, device_type: str = 'desktop'):
         st.warning("데이터가 없습니다. 좌측 사이드바에서 데이터를 업로드해 주세요.")
         return
 
-    # ⭐ 작년 데이터를 세션에서 가져와 병합 (전년 대비 비교용)
+    # 작년 데이터 병합
     df_last_year = st.session_state.get('df_last_year')
     if df_last_year is not None and not df_last_year.empty:
         df_combined = pd.concat([df, df_last_year], ignore_index=True)
     else:
         df_combined = df.copy()
 
-    # 상반기 최종월 데이터 확보 (금년 기준)
     h1_df, latest_month = _find_latest_h1_end(df)
     if h1_df is None or h1_df.empty:
         st.info("아직 상반기(6월) 마감 데이터가 반영되지 않았습니다.")
@@ -124,7 +124,6 @@ def show(df: pd.DataFrame, device_type: str = 'desktop'):
 # =========================================================
 
 def _find_latest_h1_end(df: pd.DataFrame):
-    """상반기(1~6월) 중 가장 최신 월의 데이터 반환 (금년 기준)"""
     if '평가월' not in df.columns:
         return None, None
 
@@ -135,15 +134,13 @@ def _find_latest_h1_end(df: pd.DataFrame):
     if df.empty:
         return None, None
 
-    # 데이터 최신 연도 기준
     this_year = int(df['평가월'].dt.year.max())
     h1 = df[(df['평가월'].dt.year == this_year) & (df['평가월'].dt.month.between(1, 6))]
     if h1.empty:
         return None, None
 
     latest_month = h1['평가월'].max()
-    latest_slice = h1[h1['평가월'] == latest_month].copy()
-    return latest_slice, latest_month
+    return h1[h1['평가월'] == latest_month].copy(), latest_month
 
 
 def _is_integrated_this_year(center: str) -> bool:
@@ -162,14 +159,48 @@ def _get_score(row, col):
         return 0.0
 
 
-def _calc_kpi_achievement_rate(df: pd.DataFrame, score_col: str, max_score: float) -> float:
-    """KPI 달성률(%) 계산 = 평균점수 / 만점 * 100"""
-    if score_col not in df.columns or max_score <= 0:
+def _calc_kpi_achievement_rate(
+    df: pd.DataFrame,
+    kpi_name: str,
+    max_score: float,
+) -> float:
+    """
+    KPI 달성률(%) 계산.
+    1순위: 점수 컬럼('안전점검_점수' 등)이 있으면 → 평균점수 / 만점 * 100
+    2순위: 원본 비율 컬럼('안전점검실점검율' 등)에서 계산
+      - 만족도는 이미 점수(0~100)이므로 평균 그대로
+      - 나머지는 비율(0~1) → *100 (이미 % 스케일이면 그대로)
+    """
+    if max_score <= 0:
         return 0.0
-    s = pd.to_numeric(df[score_col], errors='coerce').dropna()
-    if s.empty:
-        return 0.0
-    return float(s.mean() / max_score * 100)
+
+    score_col = KPI_SCORE_COLS.get(kpi_name)
+    rate_col = KPI_RATE_COLS.get(kpi_name)
+
+    # 1순위: 점수 컬럼
+    if score_col and score_col in df.columns:
+        s = pd.to_numeric(df[score_col], errors='coerce').dropna()
+        if not s.empty:
+            return float(s.mean() / max_score * 100)
+
+    # 2순위: 원본 비율 컬럼
+    if rate_col and rate_col in df.columns:
+        r = pd.to_numeric(df[rate_col], errors='coerce').dropna()
+        if r.empty:
+            return 0.0
+
+        if kpi_name == '만족도':
+            # 이미 0~100 점수 형태
+            return float(r.mean())
+
+        mean_val = float(r.mean())
+        # 스케일 자동 판별 (>1.5면 이미 % 스케일)
+        if r.max() > 1.5:
+            return mean_val
+        else:
+            return mean_val * 100
+
+    return 0.0
 
 
 # =========================================================
@@ -256,11 +287,9 @@ def _render_yoy_comparison(df: pd.DataFrame, h1_df: pd.DataFrame):
     df_dt['평가월'] = pd.to_datetime(df_dt['평가월'], errors='coerce')
     df_dt = df_dt.dropna(subset=['평가월'])
 
-    # 올해 상반기 연도
     this_year = int(pd.to_datetime(h1_df['평가월'].iloc[0]).year)
     last_year = this_year - 1
 
-    # 전년도 상반기 (1~6월) 중 가장 마지막 월 사용
     ly_h1_all = df_dt[
         (df_dt['평가월'].dt.year == last_year)
         & (df_dt['평가월'].dt.month.between(1, 6))
@@ -268,8 +297,7 @@ def _render_yoy_comparison(df: pd.DataFrame, h1_df: pd.DataFrame):
 
     if ly_h1_all.empty:
         st.info(
-            f"{last_year}년 상반기 데이터가 없어 전년 비교를 표시할 수 없습니다. "
-            f"(데이터 파일에 {last_year}년 데이터가 포함되어 있는지 확인해주세요.)"
+            f"{last_year}년 상반기 데이터가 없어 전년 비교를 표시할 수 없습니다."
         )
         return
 
@@ -278,17 +306,14 @@ def _render_yoy_comparison(df: pd.DataFrame, h1_df: pd.DataFrame):
 
     ly_month_str = pd.to_datetime(ly_latest_month).strftime("%Y년 %m월")
     ty_month_str = pd.to_datetime(h1_df['평가월'].iloc[0]).strftime("%Y년 %m월")
-
     st.caption(
         f"비교 기준: **{ly_month_str}** (전년 상반기 마감) vs **{ty_month_str}** (금년 상반기 마감)"
     )
 
-    # YoY 비교에서는 양쪽 연도의 통합센터 모두 제외 (참고용)
     exclude_names = INTEGRATED_CENTERS_THIS_YEAR | INTEGRATED_CENTERS_LAST_YEAR
     ty_valid = h1_df[~h1_df['센터명'].isin(exclude_names)]
     ly_valid = ly[~ly['센터명'].isin(exclude_names)]
 
-    # 총점 평균 비교
     ty_scores = pd.to_numeric(ty_valid['총점'], errors='coerce').dropna()
     ly_scores = pd.to_numeric(ly_valid['총점'], errors='coerce').dropna()
 
@@ -324,11 +349,8 @@ def _render_yoy_comparison(df: pd.DataFrame, h1_df: pd.DataFrame):
     common_kpis = ['안전점검', '중점고객', '상담응대', '상담기여', '만족도']
 
     for kpi in common_kpis:
-        col = KPI_SCORE_COLS.get(kpi)
-        if col is None:
-            continue
-        ly_rate = _calc_kpi_achievement_rate(ly_valid, col, KPI_MAX_LAST_YEAR[kpi])
-        ty_rate = _calc_kpi_achievement_rate(ty_valid, col, KPI_MAX_THIS_YEAR[kpi])
+        ly_rate = _calc_kpi_achievement_rate(ly_valid, kpi, KPI_MAX_LAST_YEAR[kpi])
+        ty_rate = _calc_kpi_achievement_rate(ty_valid, kpi, KPI_MAX_THIS_YEAR[kpi])
         kpi_rows.append({
             'KPI': kpi,
             f'{last_year}년 달성률(%)': round(ly_rate, 1),
@@ -338,7 +360,7 @@ def _render_yoy_comparison(df: pd.DataFrame, h1_df: pd.DataFrame):
 
     # 사용계약 (2026년 신설)
     ty_rate = _calc_kpi_achievement_rate(
-        ty_valid, KPI_SCORE_COLS['사용계약'], KPI_MAX_THIS_YEAR['사용계약']
+        ty_valid, '사용계약', KPI_MAX_THIS_YEAR['사용계약']
     )
     kpi_rows.append({
         'KPI': '사용계약 (신설)',
@@ -350,7 +372,6 @@ def _render_yoy_comparison(df: pd.DataFrame, h1_df: pd.DataFrame):
     kpi_df = pd.DataFrame(kpi_rows)
     st.dataframe(kpi_df, use_container_width=True, hide_index=True)
 
-    # 막대 차트 (전년 데이터가 있는 KPI만)
     plot_df = kpi_df[kpi_df[f'{last_year}년 달성률(%)'].notna()].copy()
     if not plot_df.empty:
         fig = go.Figure()
@@ -395,7 +416,6 @@ def _build_result_table(df: pd.DataFrame, h1_df: pd.DataFrame) -> pd.DataFrame:
     this_year = int(pd.to_datetime(h1_df['평가월'].iloc[0]).year)
     last_year = this_year - 1
 
-    # 전년 상반기 마지막 월
     ly_h1_all = df_dt[
         (df_dt['평가월'].dt.year == last_year)
         & (df_dt['평가월'].dt.month.between(1, 6))
@@ -416,7 +436,6 @@ def _build_result_table(df: pd.DataFrame, h1_df: pd.DataFrame) -> pd.DataFrame:
         center = row['센터명']
         total = _get_score(row, '총점')
 
-        # 상태
         if total >= TARGET_SCORE:
             status = "✅ 달성"
         elif total >= NEAR_MISS_MIN:
@@ -424,14 +443,12 @@ def _build_result_table(df: pd.DataFrame, h1_df: pd.DataFrame) -> pd.DataFrame:
         else:
             status = "🔴 미달"
 
-        # 특이사항
         notes = []
         if _is_integrated_this_year(center):
             notes.append("2026년 통합센터 (상·하반기 평가 유예 · 참고용)")
         if center in ADJUSTED_CENTERS:
             notes.append("권역조정 (안전점검은 기존 관리세대 기준)")
 
-        # 전년 대비
         ly_score = ly_map.get(center)
         if _is_integrated_last_year(center):
             yoy = "전년 유예"
@@ -440,7 +457,6 @@ def _build_result_table(df: pd.DataFrame, h1_df: pd.DataFrame) -> pd.DataFrame:
         else:
             yoy = "-"
 
-        # 하반기 필요 점수 (연평균 911 = 총 1822 기준)
         if total >= TARGET_SCORE:
             need_h2 = "-"
         else:
@@ -484,11 +500,9 @@ def _render_download_section(h1_df: pd.DataFrame, result_table: pd.DataFrame, la
     month_str = pd.to_datetime(latest_month).strftime("%Y%m")
     ts = datetime.now().strftime("%Y%m%d_%H%M")
 
-    # 상반기 요약 보고서 (Excel)
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine='openpyxl') as writer:
         result_table.to_excel(writer, index=False, sheet_name='센터별 결과')
-
         summary = _build_summary_sheet(h1_df)
         summary.to_excel(writer, index=False, sheet_name='요약 통계')
 
