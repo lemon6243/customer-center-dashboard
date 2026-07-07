@@ -159,7 +159,7 @@ def main():
     try:
         # 헤더
         st.markdown(
-            '<div class="main-header">🏢 도시가스 고객센터 성과 대시보드</div>',
+            '<div class="main-header">🏢 예스코 고객센터 성과 대시보드</div>',
             unsafe_allow_html=True
         )
         
