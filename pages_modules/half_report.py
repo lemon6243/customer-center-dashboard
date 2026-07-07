@@ -239,66 +239,88 @@ def _render_yoy_comparison(df: pd.DataFrame, h1_df: pd.DataFrame):
     df_dt['평가월'] = pd.to_datetime(df_dt['평가월'], errors='coerce')
     df_dt = df_dt.dropna(subset=['평가월'])
 
-    last_year = pd.to_datetime(h1_df['평가월'].iloc[0]).year - 1
+    # 올해 상반기 연도
+    this_year = int(pd.to_datetime(h1_df['평가월'].iloc[0]).year)
+    last_year = this_year - 1
 
-    # 전년도 상반기 (2025년 6월 최종)
-    ly = df_dt[
+    # 전년도 상반기 (1~6월) 중 가장 마지막 월 사용 → 6월이 없으면 5월 등 사용
+    ly_h1_all = df_dt[
         (df_dt['평가월'].dt.year == last_year)
-        & (df_dt['평가월'].dt.month == 6)
+        & (df_dt['평가월'].dt.month.between(1, 6))
     ]
 
-    if ly.empty:
+    if ly_h1_all.empty:
         st.info(f"{last_year}년 상반기 데이터가 없어 전년 비교를 표시할 수 없습니다.")
         return
 
-    # 통합센터 제외 (양쪽 모두)
-    ty_valid = h1_df[~h1_df['센터명'].isin(
-        INTEGRATED_CENTERS_THIS_YEAR | INTEGRATED_CENTERS_LAST_YEAR
-    )]
-    ly_valid = ly[~ly['센터명'].isin(
-        INTEGRATED_CENTERS_THIS_YEAR | INTEGRATED_CENTERS_LAST_YEAR
-    )]
+    ly_latest_month = ly_h1_all['평가월'].max()
+    ly = ly_h1_all[ly_h1_all['평가월'] == ly_latest_month].copy()
 
-    # 총점 달성률
-    ty_avg_total = pd.to_numeric(ty_valid['총점'], errors='coerce').mean()
-    ly_avg_total = pd.to_numeric(ly_valid['총점'], errors='coerce').mean()
+    ly_month_str = pd.to_datetime(ly_latest_month).strftime("%Y년 %m월")
+    ty_month_str = pd.to_datetime(h1_df['평가월'].iloc[0]).strftime("%Y년 %m월")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric(f"{last_year}년 상반기 평균", f"{ly_avg_total:,.1f}점")
-    c2.metric("2026년 상반기 평균", f"{ty_avg_total:,.1f}점",
-              delta=f"{ty_avg_total - ly_avg_total:+.1f}점")
-    c3.metric("달성률 변화",
-              f"{ty_avg_total / 10:.1f}%",
-              delta=f"{(ty_avg_total - ly_avg_total) / 10:+.1f}%p")
+    st.caption(f"비교 기준: **{ly_month_str}** (전년 상반기 마감) vs **{ty_month_str}** (금년 상반기 마감)")
+
+    # YoY 비교에서는 양쪽 연도의 통합센터 모두 제외 (참고용)
+    exclude_names = INTEGRATED_CENTERS_THIS_YEAR | INTEGRATED_CENTERS_LAST_YEAR
+    ty_valid = h1_df[~h1_df['센터명'].isin(exclude_names)]
+    ly_valid = ly[~ly['센터명'].isin(exclude_names)]
+
+    # 총점 평균 비교
+    ty_scores = pd.to_numeric(ty_valid['총점'], errors='coerce').dropna()
+    ly_scores = pd.to_numeric(ly_valid['총점'], errors='coerce').dropna()
+
+    if ty_scores.empty or ly_scores.empty:
+        st.warning(
+            f"비교 대상 센터가 부족합니다. "
+            f"(전년 {len(ly_scores)}개 / 금년 {len(ty_scores)}개)"
+        )
+    else:
+        ty_avg_total = float(ty_scores.mean())
+        ly_avg_total = float(ly_scores.mean())
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric(f"{last_year}년 상반기 평균", f"{ly_avg_total:,.1f}점",
+                  help=f"비교 대상 {len(ly_scores)}개 센터")
+        c2.metric(f"{this_year}년 상반기 평균", f"{ty_avg_total:,.1f}점",
+                  delta=f"{ty_avg_total - ly_avg_total:+.1f}점",
+                  help=f"비교 대상 {len(ty_scores)}개 센터")
+        c3.metric("달성률 변화",
+                  f"{ty_avg_total / 10:.1f}%",
+                  delta=f"{(ty_avg_total - ly_avg_total) / 10:+.1f}%p")
 
     # KPI별 달성률 비교
     kpi_rows = []
     common_kpis = ['안전점검', '중점고객', '상담응대', '상담기여', '만족도']
 
     for kpi in common_kpis:
-        col = KPI_SCORE_COLS[kpi]
+        col = KPI_SCORE_COLS.get(kpi)
+        if col is None:
+            continue
         ly_rate = _calc_kpi_achievement_rate(ly_valid, col, KPI_MAX_LAST_YEAR[kpi])
         ty_rate = _calc_kpi_achievement_rate(ty_valid, col, KPI_MAX_THIS_YEAR[kpi])
         kpi_rows.append({
             'KPI': kpi,
             f'{last_year}년 달성률(%)': round(ly_rate, 1),
-            '2026년 달성률(%)': round(ty_rate, 1),
+            f'{this_year}년 달성률(%)': round(ty_rate, 1),
             '변화(%p)': round(ty_rate - ly_rate, 1),
         })
 
-    # 사용계약 (올해 신설)
-    ty_rate = _calc_kpi_achievement_rate(ty_valid, KPI_SCORE_COLS['사용계약'], KPI_MAX_THIS_YEAR['사용계약'])
+    # 사용계약 (2026년 신설)
+    ty_rate = _calc_kpi_achievement_rate(
+        ty_valid, KPI_SCORE_COLS['사용계약'], KPI_MAX_THIS_YEAR['사용계약']
+    )
     kpi_rows.append({
         'KPI': '사용계약 (신설)',
         f'{last_year}년 달성률(%)': None,
-        '2026년 달성률(%)': round(ty_rate, 1),
+        f'{this_year}년 달성률(%)': round(ty_rate, 1),
         '변화(%p)': None,
     })
 
     kpi_df = pd.DataFrame(kpi_rows)
     st.dataframe(kpi_df, use_container_width=True, hide_index=True)
 
-    # KPI 달성률 막대 차트
+    # 막대 차트
     plot_df = kpi_df[kpi_df[f'{last_year}년 달성률(%)'].notna()].copy()
     if not plot_df.empty:
         fig = go.Figure()
@@ -306,12 +328,12 @@ def _render_yoy_comparison(df: pd.DataFrame, h1_df: pd.DataFrame):
             name=f'{last_year}년',
             x=plot_df['KPI'],
             y=plot_df[f'{last_year}년 달성률(%)'],
-            marker_color=Colors.NEUTRAL if hasattr(Colors, 'NEUTRAL') else '#94a3b8',
+            marker_color='#94a3b8',
         ))
         fig.add_trace(go.Bar(
-            name='2026년',
+            name=f'{this_year}년',
             x=plot_df['KPI'],
-            y=plot_df['2026년 달성률(%)'],
+            y=plot_df[f'{this_year}년 달성률(%)'],
             marker_color=Colors.PRIMARY,
         ))
         fig.update_layout(
@@ -323,6 +345,11 @@ def _render_yoy_comparison(df: pd.DataFrame, h1_df: pd.DataFrame):
             legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0),
         )
         st.plotly_chart(fig, use_container_width=True)
+
+    st.caption(
+        "🔎 비교 대상은 양 연도 모두 정상 평가된 센터만 포함됩니다. "
+        f"({', '.join(sorted(exclude_names))}는 통합/유예로 비교에서 제외)"
+    )
 
 
 def _calc_kpi_achievement_rate(df: pd.DataFrame, score_col: str, max_score: float) -> float:
