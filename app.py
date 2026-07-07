@@ -24,6 +24,7 @@ from pages_modules import (
     risk,
     heatmap,
     deep_analysis,
+    half_report,   # ⭐ 신규 추가
 )
 
 
@@ -130,21 +131,20 @@ PAGE_ROUTER = {
     "⚠️ 위험 관리": risk.show,
     "🌡️ KPI 히트맵": heatmap.show,
     "🔬 심화 분석": deep_analysis.show,
+    "📑 상반기 보고": half_report.show,   # ⭐ 신규 추가
 }
 
 
 def render_page(selected_page: str, df: pd.DataFrame):
     """선택된 페이지 렌더링"""
-    
     page_func = PAGE_ROUTER.get(selected_page)
-    
     if page_func is None:
         st.error(f"❌ 알 수 없는 페이지: {selected_page}")
         return
-    
+
     device_type = st.session_state.get('device_type', 'desktop')
-    
-    # heatmap만 device_type을 받지 않음 (기존 모듈 호환)
+
+    # heatmap만 device_type을 받지 않음
     if selected_page == "🌡️ KPI 히트맵":
         page_func(df)
     else:
