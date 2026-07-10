@@ -32,6 +32,8 @@ from pages_modules import (
 
 # ==================== 페이지 설정 ====================
 
+# ==================== 페이지 설정 ====================
+
 st.set_page_config(
     page_title="고객센터 성과 대시보드",
     page_icon="📊",
@@ -39,8 +41,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ==================== Google Analytics 4 ====================
+GA_MEASUREMENT_ID = "G-JKSWFV2Z13"
+st.markdown(f"""
+<script async src="https://www.googletagmanager.com/gtag/js?id={GA_MEASUREMENT_ID}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){{dataLayer.push(arguments);}}
+  gtag('js', new Date());
+  gtag('config', '{GA_MEASUREMENT_ID}');
+</script>
+""", unsafe_allow_html=True)
+
 # 전역 CSS 적용
 apply_global_styles()
+
 
 
 # ==================== 데이터 로딩 ====================
