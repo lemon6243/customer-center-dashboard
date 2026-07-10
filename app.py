@@ -6,6 +6,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import streamlit.components.v1 as components
 
 from typing import Optional, Tuple
 
