@@ -230,4 +230,5 @@ def _show_welcome():
 
 
 if __name__ == "__main__":
-    main()
+    with streamlit_analytics.track():
+        main()
