@@ -6,7 +6,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import streamlit_analytics2 as streamlit_analytics
 
 from typing import Optional, Tuple
 
@@ -245,5 +244,4 @@ def _show_welcome():
 
 
 if __name__ == "__main__":
-    with streamlit_analytics.track():
-        main()
+    main()
