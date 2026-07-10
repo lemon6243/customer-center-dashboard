@@ -6,6 +6,8 @@
 import streamlit as st
 import pandas as pd
 import os
+import streamlit_analytics2 as streamlit_analytics
+
 from typing import Optional, Tuple
 
 # 로컬 모듈
