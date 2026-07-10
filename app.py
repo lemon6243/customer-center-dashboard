@@ -43,15 +43,20 @@ st.set_page_config(
 
 # ==================== Google Analytics 4 ====================
 GA_MEASUREMENT_ID = "G-JKSWFV2Z13"
-st.markdown(f"""
-<script async src="https://www.googletagmanager.com/gtag/js?id={GA_MEASUREMENT_ID}"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){{dataLayer.push(arguments);}}
-  gtag('js', new Date());
-  gtag('config', '{GA_MEASUREMENT_ID}');
-</script>
-""", unsafe_allow_html=True)
+components.html(
+    f"""
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={GA_MEASUREMENT_ID}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){{dataLayer.push(arguments);}}
+      gtag('js', new Date());
+      gtag('config', '{GA_MEASUREMENT_ID}');
+    </script>
+    """,
+    height=0,
+    width=0,
+)
 
 # 전역 CSS 적용
 apply_global_styles()
