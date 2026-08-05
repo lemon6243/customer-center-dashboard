@@ -11,6 +11,18 @@ import pandas as pd
 import numpy as np
 from utils.prediction import add_predictions_to_df
 
+from utils.half_year import (
+    get_half as _get_half,
+    get_half_last_month as _get_half_last_month,
+    to_month_int as _to_month_int,
+    is_half_start as _is_half_start,
+    is_half_end as _is_half_end,
+    get_latest_month as _safe_latest_month,
+    filter_by_month as _filter_by_month,
+    get_comparison_data,
+)
+
+
 
 # ==================== 상수 정의 ====================
 
@@ -45,8 +57,7 @@ SAFETY_MONTHLY_TARGET = {
     1: 15, 2: 30, 3: 45, 4: 60, 5: 75, 6: 90,
     7: 15, 8: 30, 9: 45, 10: 60, 11: 75, 12: 90,
 }
-HALF_END_MONTHS = {6, 12}
-HALF_START_MONTHS = {1, 7}
+
 
 
 # ==================== 데이터 클래스 ====================
@@ -63,27 +74,7 @@ class Insight:
 
 # ==================== 헬퍼 함수 ====================
 
-def _get_half(month: int) -> str:
-    return '상반기' if 1 <= month <= 6 else '하반기'
 
-def _get_half_last_month(half: str) -> int:
-    return 6 if half == '상반기' else 12
-
-def _to_month_int(month_val) -> int:
-    if pd.isna(month_val):
-        return 0
-    if isinstance(month_val, (int, np.integer)):
-        return int(month_val)
-    try:
-        return pd.to_datetime(month_val).month
-    except Exception:
-        return 0
-
-def _is_half_end(month_val) -> bool:
-    return _to_month_int(month_val) in HALF_END_MONTHS
-
-def _is_half_start(month_val) -> bool:
-    return _to_month_int(month_val) in HALF_START_MONTHS
 
 def _normalize_pct(val) -> float:
     """0~1 / 0~100 혼재 대응. NaN은 NaN 유지."""
@@ -92,26 +83,6 @@ def _normalize_pct(val) -> float:
     v = float(val)
     return v * 100 if v <= 1.0 else v
 
-def _safe_latest_month(df: pd.DataFrame):
-    if '평가월' not in df.columns or df.empty:
-        return None
-    months = pd.to_datetime(df['평가월'], errors='coerce').dropna()
-    return None if months.empty else months.max()
-
-def _filter_by_month(df: pd.DataFrame, month) -> pd.DataFrame:
-    if month is None or df is None or df.empty or '평가월' not in df.columns:
-        return pd.DataFrame(columns=df.columns if isinstance(df, pd.DataFrame) else None)
-    month_series = pd.to_datetime(df['평가월'], errors='coerce')
-    return df[month_series == pd.Timestamp(month)]
-
-def _filter_same_month_last_year(
-    df_last_year: Optional[pd.DataFrame], latest
-) -> pd.DataFrame:
-    """작년 데이터 중 현재 평가월과 같은 '월'만 반환한다."""
-    if (
-        df_last_year is None or df_last_year.empty
-        or '평가월' not in df_last_year.columns or latest is None
-    ):
         return pd.DataFrame()
 
     target_month = pd.Timestamp(latest).month
@@ -124,17 +95,20 @@ def _needed_for_annual_pass(h1_score: float) -> float:
 def _comparison_data(
     df: pd.DataFrame,
     latest,
-    prev,
+    prev=None,
     df_last_year: Optional[pd.DataFrame] = None,
 ) -> Tuple[pd.DataFrame, str]:
     """
-    비교 기준 반환.
-    - 1월/7월: 작년 동월(동일 반기)
-    - 그 외: 당해 전월
+    공통 반기 비교 기준 사용.
+    prev 인수는 기존 호출부 호환을 위해 유지한다.
     """
-    if _is_half_start(latest):
-        return _filter_same_month_last_year(df_last_year, latest), '전년 동월'
-    return _filter_by_month(df, prev), '전월'
+    compare_df, compare_label, _ = get_comparison_data(
+        df=df,
+        latest_month=latest,
+        df_last_year=df_last_year,
+    )
+    return compare_df, compare_label
+
 
 
 # ==================== 인사이트 함수 ====================
