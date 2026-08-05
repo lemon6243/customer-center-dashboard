@@ -31,17 +31,24 @@ def _clean_center_and_month(df: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
     
 def add_period_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """평가월 기준 연도·월·반기 컬럼을 공통으로 생성"""
+    """평가월에서 연도·월·반기 파생 컬럼 생성"""
     result = df.copy()
 
-    result["평가월"] = pd.to_datetime(result["평가월"], errors="coerce")
+    result["평가월"] = pd.to_datetime(
+        result["평가월"],
+        errors="coerce",
+    )
+
     result["연도"] = result["평가월"].dt.year
     result["월"] = result["평가월"].dt.month
     result["반기"] = result["월"].apply(
-        lambda m: "상반기" if pd.notna(m) and m <= 6 else "하반기"
+        lambda month: "상반기"
+        if pd.notna(month) and month <= 6
+        else "하반기"
     )
 
     return result
+
 
 def validate_ratio_scale_mixing(df: pd.DataFrame) -> tuple[bool, List[str]]:
     """
