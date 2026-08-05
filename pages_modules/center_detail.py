@@ -15,6 +15,7 @@ from utils.prediction import calculate_predicted_score, add_predictions_to_df
 from components.score_chart import create_kpi_radar_chart
 from utils.simulator import (
     get_current_kpi_values,
+    get_simulation_defaults,
     calculate_simulated_score,
     find_minimum_combo,
     CUMULATIVE_KPIS,
@@ -235,7 +236,27 @@ def _render_simulation_section(
 
     if is_half_end:
         st.subheader("🎯 반기 결과 (확정)")
-        current_score = float(latest['총점'])
+        # 현재 페이스를 반영한 반기말 기본 전망 KPI
+    baseline_kpis = get_simulation_defaults(
+        current_kpis,
+        period_month,
+    )
+    
+    # 민원대응·주의경고·가점은 KPI 슬라이더가 아닌 고정 조정항목
+    adjustment = (
+        float(latest.get("민원대응적정성", 0) or 0)
+        + float(latest.get("주의경고", 0) or 0)
+        + float(latest.get("가점", 0) or 0)
+    )
+    
+    baseline_result = calculate_simulated_score(
+        baseline_kpis,
+        baseline_kpis,
+        adjustment,
+    )
+    
+    current_score = baseline_result.predicted_score
+
         if current_score >= TARGET_TOTAL:
             st.success(
                 f"✅ **{center_name}** 센터는 이번 반기 **{current_score:.1f}점**으로 "
@@ -270,17 +291,24 @@ def _render_simulation_section(
     gap = TARGET_TOTAL - current_score
     if gap <= 0:
         st.success(
-            f"✅ 현재 **{current_score:.1f}점**으로 이미 911점을 달성했습니다! "
+            f"✅ 현재 페이스 기준 반기말 예상이 **{current_score:.1f}점**으로 "
+            f"이미 911점 달성권입니다! "
             f"아래에서 추가 상승 시나리오를 시뮬레이션할 수 있습니다."
         )
     else:
         st.info(
-            f"📌 현재 **{current_score:.1f}점** → 911점까지 **{gap:.1f}점** 필요"
+            f"📌 현재 페이스 기준 반기말 예상 **{current_score:.1f}점** → "f"911점까지 **{gap:.1f}점** 필요"
+
         )
 
     # ===== 최소 조합 제안 =====
     with st.expander("💡 911점 달성 최소 조합 제안 보기", expanded=False):
-        min_combo = find_minimum_combo(current_kpis, current_score, TARGET_TOTAL)
+        min_combo = find_minimum_combo(
+            baseline_kpis,
+            adjustment,
+            TARGET_TOTAL,
+        )
+
         if min_combo is None:
             st.error("❌ 모든 KPI를 100%로 올려도 911점 달성이 불가능합니다.")
         elif gap <= 0:
@@ -289,13 +317,13 @@ def _render_simulation_section(
             st.caption("배점이 큰 KPI부터 효율적으로 끌어올리는 최소 조합입니다.")
             rows = []
             for kpi in list(CUMULATIVE_KPIS.keys()) + list(VARIABLE_KPIS.keys()):
-                cur = current_kpis.get(kpi, 0.0)
+                cur = baseline_kpis.get(kpi, 0.0)
                 tgt = min_combo.get(kpi, cur)
                 diff = tgt - cur
                 if abs(diff) > 0.05:
                     rows.append({
                         'KPI': kpi,
-                        '현재값(%)': round(cur, 1),
+                        '현재 페이스 전망(%)': round(cur, 1),
                         '목표값(%)': round(tgt, 1),
                         '필요 상승(%p)': round(diff, 1),
                     })
@@ -320,7 +348,7 @@ def _render_simulation_section(
     st.markdown(f"**📈 누적형 KPI** (반기 최종 도달치 기준)")
     cumul_cols = st.columns(n_cols)
     for idx, (kpi, score_max) in enumerate(CUMULATIVE_KPIS.items()):
-        cur = current_kpis.get(kpi, 0.0)
+        cur = baseline_kpis.get(kpi, 0.0)
         with cumul_cols[idx % n_cols]:
             simulated_kpis[kpi] = st.slider(
                 f"{kpi} (배점 {score_max}점)",
@@ -336,7 +364,7 @@ def _render_simulation_section(
     st.markdown(f"**⚡ 변동형 KPI** (월 평균 목표값 기준)")
     var_cols = st.columns(n_cols)
     for idx, (kpi, score_max) in enumerate(VARIABLE_KPIS.items()):
-        cur = current_kpis.get(kpi, 0.0)
+        cur = baseline_kpis.get(kpi, 0.0)
         with var_cols[idx % n_cols]:
             simulated_kpis[kpi] = st.slider(
                 f"{kpi} (배점 {score_max}점)",
@@ -351,16 +379,12 @@ def _render_simulation_section(
     st.markdown("")
 
     # ===== 시뮬레이션 계산 =====
-    penalty = float(latest.get('주의경고', 0) or 0)
-    bonus = float(latest.get('가점', 0) or 0)
-
     result = calculate_simulated_score(
-        current_kpis=current_kpis,
+        baseline_kpis=baseline_kpis,
         simulated_kpis=simulated_kpis,
-        current_score=current_score,
-        penalty=penalty,
-        bonus=bonus,
+        adjustment=adjustment,
     )
+
 
     # ===== 결과 카드 =====
     st.markdown("##### 📊 시뮬레이션 결과")
@@ -368,9 +392,9 @@ def _render_simulation_section(
     r_cols = st.columns(3)
     with r_cols[0]:
         st.metric(
-            label="시뮬레이션 예상 점수",
+            label="시뮬레이션 반기말 점수",
             value=f"{result.predicted_score:.1f}점",
-            delta=f"{result.delta:+.1f}점 vs 현재",
+            delta=f"{result.delta:+.1f}점 vs 현재 페이스 전망",
         )
     with r_cols[1]:
         st.metric(
@@ -396,7 +420,7 @@ def _render_simulation_section(
         with st.expander("📋 KPI별 점수 기여 변화 보기", expanded=False):
             rows = []
             for kpi in list(CUMULATIVE_KPIS.keys()) + list(VARIABLE_KPIS.keys()):
-                cur = current_kpis.get(kpi, 0.0)
+                cur = baseline_kpis.get(kpi, 0.0)
                 sim = simulated_kpis.get(kpi, cur)
                 contrib = result.breakdown.get(kpi, 0.0)
                 if abs(sim - cur) > 0.05 or abs(contrib) > 0.05:
