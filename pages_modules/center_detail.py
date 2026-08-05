@@ -357,7 +357,8 @@ def _render_simulation_section(
                 value=float(cur),
                 step=0.5,
                 key=f"sim_cumul_{center_name}_{kpi}",
-                help=f"현재 {cur:.1f}% / 반기 최종 목표 90% 이상 권장",
+                help=f"현재 페이스 기준 반기말 전망 {cur:.1f}%",
+
             )
 
     st.markdown("")
@@ -373,7 +374,7 @@ def _render_simulation_section(
                 value=float(cur),
                 step=0.5,
                 key=f"sim_var_{center_name}_{kpi}",
-                help=f"현재 {cur:.1f}%",
+                help=f"현재 페이스 기준 {cur:.1f}%",
             )
 
     st.markdown("")
