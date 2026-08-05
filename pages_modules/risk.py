@@ -15,6 +15,12 @@ from utils.half_year import (
 )
 from utils.prediction import add_predictions_to_df
 from components.kpi_card import risk_card
+from utils.simulator import (
+    get_current_kpi_values,
+    get_simulation_defaults,
+    get_improvement_actions,
+)
+
 
 
 TARGET_SCORE = 911
