@@ -38,6 +38,10 @@ QUICK_NAV_ITEMS = [
     {"icon": "🔬", "label": "심화 분석",  "page_key": "🔬 심화 분석",  "desc": "분석 + 원본"},
 ]
 
+def _is_half_start(month) -> bool:
+    """1월 또는 7월이면 True"""
+    return pd.Timestamp(month).month in (1, 7)
+
 
 def show(df: pd.DataFrame, device_type: str = "desktop"):
     if df is None or df.empty:
