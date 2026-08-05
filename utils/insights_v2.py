@@ -145,196 +145,301 @@ def insight_overall_score(
     prev,
     df_last_year: Optional[pd.DataFrame] = None,
 ) -> Optional[Insight]:
+    """전체 평균: 진행 중에는 현재점수가 아닌 반기말 예측점수로 판정"""
     df_latest = _filter_by_month(df, latest)
     if df_latest.empty:
         return None
 
-    avg = df_latest["총점"].mean()
+    avg_current = df_latest["총점"].mean()
     n_centers = len(df_latest)
-    is_final = _is_half_end(latest)
-    is_start = _is_half_start(latest)
-    half_label = _get_half(_to_month_int(latest))
 
-    df_compare, compare_label = _comparison_data(df, latest, prev, df_last_year)
+    # 비교 문구: 1·7월은 전년 동월, 그 외는 같은 반기 전월
     delta_msg = ""
-    delta = None
+    df_compare, compare_label = _comparison_data(df, latest, prev, df_last_year)
+
     if not df_compare.empty and "총점" in df_compare.columns:
         compare_avg = df_compare["총점"].mean()
-        delta = avg - compare_avg
+        delta = avg_current - compare_avg
         arrow = "🔺" if delta > 0 else ("🔻" if delta < 0 else "➡️")
         delta_msg = f" ({compare_label} 대비 {arrow} {abs(delta):.1f}점)"
 
-    # 진행 중에는 911점과 현재점수를 직접 비교하지 않고, 반기 최종 전망으로 판정
-    if not is_final:
-        outlook = get_half_outlook(df, latest, df_last_year)
-        avg_forecast = outlook["현실전망"].mean() if not outlook.empty else None
+    is_final = _is_half_end(latest)
+    month_num = _to_month_int(latest)
+    half_label = _get_half(month_num)
+    period_month = month_num if month_num <= 6 else month_num - 6
 
-        if avg_forecast is not None and avg_forecast >= TARGET_TOTAL:
+    # 반기 마감: 실제 점수로 판단
+    if is_final:
+        final_avg = avg_current
+
+        if final_avg >= TARGET_TOTAL:
             category = "success"
-            action = (
-                f"반기 최종 평균 **{avg_forecast:.1f}점 전망**으로 911점 달성 페이스입니다. "
-                "현재 반기 누적점수 자체가 낮아도 정상입니다."
-            )
-        elif avg_forecast is not None and avg_forecast >= 895:
-            category = "info"
-            action = f"반기 최종 평균 **{avg_forecast:.1f}점 전망**입니다. 변동형 KPI 관리로 911점 도달이 가능합니다."
-        elif avg_forecast is not None:
+            action = f"{half_label} 평균 911점 이상 달성. 연간 pass 안정권입니다."
+        elif final_avg >= 895:
             category = "warning"
-            action = f"반기 최종 평균 **{avg_forecast:.1f}점 전망**입니다. 안전점검과 변동형 KPI의 페이스 점검이 필요합니다."
+            action = (
+                f"{half_label} 최종 평균 {final_avg:.1f}점. "
+                f"911점까지 {TARGET_TOTAL - final_avg:.1f}점 부족합니다."
+            )
         else:
-            category = "info"
-            action = "작년 동일 반기 데이터가 부족해 현재 누적점수와 전년 동월 비교를 중심으로 표시합니다."
+            category = "danger"
+            action = f"{half_label} 최종 평균이 895점 미만입니다. 원인 분석과 개선계획이 필요합니다."
 
-        title = f"{half_label} {(_to_month_int(latest) - 6) if half_label == '하반기' else _to_month_int(latest)}개월차 평균"
         return Insight(
             icon="📊",
-            title=title,
-            message=f"전체 {n_centers}개 센터 평균 **{avg:.1f}점**{delta_msg}",
+            title=f"{half_label} 최종 평균 점수",
+            message=f"전체 {n_centers}개 센터 평균 **{final_avg:.1f}점**{delta_msg}",
             category=category,
             priority=1,
             action=action,
         )
 
-    # 반기 마감일에만 현재 점수로 최종 판정
-    if avg >= TARGET_TOTAL:
-        category = "success"
-        action = f"{half_label} 평균 911점 이상 달성. 현재 페이스면 연간 pass 안정권입니다."
-    elif avg >= 880:
+    # 진행 중: 성과분석과 동일한 예측점수로 판단
+    outlook = get_half_outlook(
+        df,
+        current_month=latest,
+        df_last_year=df_last_year,
+    )
+
+    avg_forecast = outlook["현실전망"].mean() if not outlook.empty else None
+
+    if avg_forecast is None or pd.isna(avg_forecast):
         category = "info"
-        action = (
-            f"{half_label} 평균 {avg:.1f}점. 연간 pass(평균 911점)를 위해 "
-            f"**하반기 평균 {_needed_for_annual_pass(avg):.0f}점** 필요."
-            if half_label == "상반기"
-            else f"{half_label} 최종 평균 {avg:.1f}점. 개선 계획이 필요합니다."
-        )
+        action = "반기 마감 전망 데이터를 계산할 수 없습니다."
+        forecast_msg = ""
     else:
-        category = "warning"
-        action = f"{half_label} 최종 평균이 880점 미만입니다. 근본 원인 분석이 필요합니다."
+        forecast_msg = f" · 반기말 예측 평균 **{avg_forecast:.1f}점**"
+
+        if avg_forecast >= TARGET_TOTAL:
+            category = "success"
+            action = "현재 페이스 유지 시 반기 목표 911점 달성이 예상됩니다."
+        elif avg_forecast >= 895:
+            category = "warning"
+            action = (
+                f"반기말 예측 평균이 {avg_forecast:.1f}점입니다. "
+                f"911점까지 {TARGET_TOTAL - avg_forecast:.1f}점 보완이 필요합니다."
+            )
+        else:
+            category = "danger"
+            action = (
+                f"반기말 예측 평균이 {avg_forecast:.1f}점입니다. "
+                "누적형 KPI와 변동형 KPI 개선이 필요합니다."
+            )
 
     return Insight(
         icon="📊",
-        title=f"{half_label} 최종 평균 점수",
-        message=f"전체 {n_centers}개 센터 평균 **{avg:.1f}점**{delta_msg}",
+        title=f"{half_label} {period_month}개월차 평균 점수",
+        message=(
+            f"전체 {n_centers}개 센터 현재 평균 **{avg_current:.1f}점**"
+            f"{delta_msg}{forecast_msg}"
+        ),
         category=category,
         priority=1,
         action=action,
     )
 
 
-def insight_achievers(df: pd.DataFrame, latest) -> Optional[Insight]:
-        # 반기 진행 중에는 현재 누적점수로 911/850 위험을 판정하지 않는다.
-    if not _is_half_end(latest):
-        return None
-
-    df_latest = _filter_by_month(df, latest)
-    if df_latest.empty:
-        return None
-
-    achievers = df_latest[df_latest['총점'] >= TARGET_TOTAL].sort_values('총점', ascending=False)
-    if achievers.empty:
-        return None
-
+def insight_achievers(
+    df: pd.DataFrame,
+    latest,
+    df_last_year: Optional[pd.DataFrame] = None,
+) -> Optional[Insight]:
+    """진행 중에는 예상 반기말 점수 911점 이상 센터를 표시"""
     is_final = _is_half_end(latest)
     half_label = _get_half(_to_month_int(latest))
-    n_ach, n_total = len(achievers), len(df_latest)
-    rate = n_ach / n_total * 100 if n_total else 0
-    names = ', '.join(achievers['센터명'].head(5).tolist())
-    extra = f' 외 {n_ach - 5}개' if n_ach > 5 else ''
-    top_center, top_score = achievers.iloc[0]['센터명'], achievers.iloc[0]['총점']
 
+    # 마감월: 실제 점수 기준
     if is_final:
-        title = f'🎉 {half_label} 911점 달성 {n_ach}개'
-        message = (
-            f'**{names}**{extra} 센터가 반기 목표(911점)를 달성했습니다. '
-            f'최고: {top_center} {top_score:.1f}점 (달성률 {rate:.0f}%)'
+        df_latest = _filter_by_month(df, latest)
+
+        if df_latest.empty:
+            return None
+
+        achievers = df_latest[df_latest["총점"] >= TARGET_TOTAL].sort_values(
+            "총점", ascending=False
         )
-        action = (
-            '우수 센터의 성공 요인을 분석해 하반기 시작 전 전사 공유하세요. '
-            '이들 센터는 하반기 페이스만 유지해도 연간 pass 안정권입니다.'
-            if half_label == '상반기' else
-            '연간 우수 사례로 확산해 내년도 계획에 반영하세요.'
+
+        if achievers.empty:
+            return None
+
+        n_ach = len(achievers)
+        names = ", ".join(achievers["센터명"].head(5).tolist())
+        extra = f" 외 {n_ach - 5}개" if n_ach > 5 else ""
+
+        return Insight(
+            icon="🏆",
+            title=f"🎉 {half_label} 911점 달성 {n_ach}개",
+            message=f"**{names}**{extra} 센터가 반기 목표를 달성했습니다.",
+            category="success",
+            priority=2,
+            action="우수 센터의 운영 사례를 다음 반기 운영계획에 공유하세요.",
         )
-    else:
-        title = f'🎯 목표 달성 페이스 {n_ach}개'
-        message = f'**{names}**{extra} 센터가 현재 911점 이상을 유지하고 있습니다. 선두: {top_center} {top_score:.1f}점'
-        action = '현재 페이스를 반기 말까지 유지하도록 지원하세요.'
 
-    return Insight('🏆', title, message, 'success', 2, action)
+    # 진행월: 성과분석 공통 예측점수 기준
+    outlook = get_half_outlook(
+        df,
+        current_month=latest,
+        df_last_year=df_last_year,
+    )
 
-
-def insight_below_target(df: pd.DataFrame, latest) -> Optional[Insight]:
-    # 반기 진행 중에는 현재 누적점수로 911/850 위험을 판정하지 않는다.
-    if not _is_half_end(latest):
+    if outlook.empty:
         return None
 
-    df_latest = _filter_by_month(df, latest)
-    if df_latest.empty:
+    safe = outlook[outlook["안전도"] == "안전"].sort_values(
+        "현실전망", ascending=False
+    )
+
+    if safe.empty:
         return None
 
-    below = df_latest[df_latest['총점'] < TARGET_TOTAL].sort_values('총점')
-    if below.empty:
-        return None
+    n_safe = len(safe)
+    names = ", ".join(safe["센터명"].head(5).tolist())
+    extra = f" 외 {n_safe - 5}개" if n_safe > 5 else ""
+    top = safe.iloc[0]
 
+    return Insight(
+        icon="🏆",
+        title=f"🎯 911점 달성 안전 페이스 {n_safe}개",
+        message=(
+            f"**{names}**{extra} 센터가 반기말 911점 이상으로 예상됩니다. "
+            f"선두: {top['센터명']} **{top['현실전망']:.1f}점 예상**"
+        ),
+        category="success",
+        priority=2,
+        action="현재 KPI 관리 수준을 유지하고 우수 운영 사례를 공유하세요.",
+    )
+
+
+def insight_below_target(
+    df: pd.DataFrame,
+    latest,
+    df_last_year: Optional[pd.DataFrame] = None,
+) -> Optional[Insight]:
+    """진행 중에는 현재점수 미달이 아니라 반기말 페이스 위험을 표시"""
     is_final = _is_half_end(latest)
     half_label = _get_half(_to_month_int(latest))
-    n_below = len(below)
-    names = ', '.join(below['센터명'].head(3).tolist())
-    extra = f' 외 {n_below - 3}개' if n_below > 3 else ''
 
-    if is_final and half_label == '상반기':
-        worst = below.iloc[0]
-        worst_needed = _needed_for_annual_pass(worst['총점'])
-        title = f'⚠️ 상반기 911점 미달 {n_below}개'
-        message = (
-            f'**{names}**{extra} 센터가 상반기 911점에 도달하지 못했습니다. '
-            f'가장 낮은 {worst["센터명"]}({worst["총점"]:.1f}점)은 연간 pass 위해 '
-            f'하반기 **{worst_needed:.0f}점** 필요.'
+    # 반기 마감: 실제 총점 기준
+    if is_final:
+        df_latest = _filter_by_month(df, latest)
+
+        if df_latest.empty:
+            return None
+
+        below = df_latest[df_latest["총점"] < TARGET_TOTAL].sort_values("총점")
+
+        if below.empty:
+            return None
+
+        n_below = len(below)
+        names = ", ".join(below["센터명"].head(3).tolist())
+        extra = f" 외 {n_below - 3}개" if n_below > 3 else ""
+
+        return Insight(
+            icon="⚠️",
+            title=f"{half_label} 911점 미달 {n_below}개",
+            message=f"**{names}**{extra} 센터가 반기 목표에 미달했습니다.",
+            category="warning" if half_label == "상반기" else "danger",
+            priority=3,
+            action="센터별 미달 KPI와 개선 우선순위를 점검하세요.",
         )
-        very_hard = below[below['총점'].apply(lambda s: _needed_for_annual_pass(s) > 950)]
-        action = (
-            f'{len(very_hard)}개 센터는 하반기 950점 이상 필요 — 구조적 개선 없이는 연간 pass 어려움. 우선순위 관리 대상.'
-            if not very_hard.empty else
-            '하반기에 상반기 대비 페이스 회복하면 연간 pass 가능한 수준. 변동형 KPI를 우선 점검하세요.'
+
+    # 진행월: 예상 반기말 점수 895점 미만만 위험으로 표시
+    outlook = get_half_outlook(
+        df,
+        current_month=latest,
+        df_last_year=df_last_year,
+    )
+
+    if outlook.empty:
+        return None
+
+    risk = outlook[outlook["안전도"] == "위험"].sort_values("현실전망")
+
+    if risk.empty:
+        return None
+
+    n_risk = len(risk)
+    names = ", ".join(risk["센터명"].head(3).tolist())
+    extra = f" 외 {n_risk - 3}개" if n_risk > 3 else ""
+    worst = risk.iloc[0]
+
+    return Insight(
+        icon="⚠️",
+        title=f"반기 페이스 위험 센터 {n_risk}개",
+        message=(
+            f"**{names}**{extra} 센터의 반기말 예상점수가 895점 미만입니다. "
+            f"최저 예상: {worst['센터명']} **{worst['현실전망']:.1f}점**"
+        ),
+        category="warning",
+        priority=3,
+        action="안전점검·중점고객 등 누적형 KPI와 변동형 KPI의 개선 항목을 우선 점검하세요.",
+    )
+
+
+def insight_danger_zone(
+    df: pd.DataFrame,
+    latest,
+    df_last_year: Optional[pd.DataFrame] = None,
+) -> Optional[Insight]:
+    """진행 중에는 반기말 851점 미만 예상 센터만 강한 위험으로 표시"""
+    is_final = _is_half_end(latest)
+    half_label = _get_half(_to_month_int(latest))
+
+    # 마감월: 실제점수 기준
+    if is_final:
+        df_latest = _filter_by_month(df, latest)
+
+        if df_latest.empty:
+            return None
+
+        danger = df_latest[df_latest["총점"] < DANGER_THRESHOLD].sort_values("총점")
+
+        if danger.empty:
+            return None
+
+        names = ", ".join(danger["센터명"].head(3).tolist())
+        extra = f" 외 {len(danger) - 3}개" if len(danger) > 3 else ""
+
+        return Insight(
+            icon="🚨",
+            title=f"{half_label} 850점 미만 {len(danger)}개",
+            message=f"**{names}**{extra} 센터가 850점 미만입니다.",
+            category="danger",
+            priority=2,
+            action="최저 성과 KPI를 중심으로 긴급 개선계획을 수립하세요.",
         )
-        category = 'warning'
-    elif is_final:
-        title, message = f'🚨 연간 911점 미달 {n_below}개', f'**{names}**{extra} 센터가 하반기에도 911점에 도달하지 못했습니다.'
-        action, category = '연간 평가 최종 미달. 내년도 개선 계획 수립 시 근본 원인 분석 필요.', 'danger'
-    else:
-        title, message = f'911점 미달 {n_below}개 (진행 중)', f'**{names}**{extra} 센터가 현재 911점 미만입니다.'
-        action, category = '반기 종료 전까지 페이스 회복 필요.', 'info'
 
-    return Insight('📉' if not is_final else ('⚠️' if half_label == '상반기' else '🚨'),
-                   title, message, category, 3, action)
+    # 진행월: 예측 반기말 점수 기준
+    outlook = get_half_outlook(
+        df,
+        current_month=latest,
+        df_last_year=df_last_year,
+    )
 
-
-def insight_danger_zone(df: pd.DataFrame, latest) -> Optional[Insight]:
-    # 반기 진행 중에는 현재 누적점수로 911/850 위험을 판정하지 않는다.
-    if not _is_half_end(latest):
-        return None
- 
-    df_latest = _filter_by_month(df, latest)
-    if df_latest.empty:
-        return None
-    danger = df_latest[df_latest['총점'] < DANGER_THRESHOLD].sort_values('총점')
-    if danger.empty:
+    if outlook.empty:
         return None
 
-    names = ', '.join(danger['센터명'].head(3).tolist())
-    extra = f' 외 {len(danger)-3}개' if len(danger) > 3 else ''
-    is_final, half_label = _is_half_end(latest), _get_half(_to_month_int(latest))
+    severe = outlook[outlook["현실전망"] < DANGER_THRESHOLD].sort_values("현실전망")
 
-    if is_final and half_label == '상반기':
-        worst = danger.iloc[0]
-        title = f'🚨 상반기 850점 미만 {len(danger)}개'
-        action = (f'{worst["센터명"]}({worst["총점"]:.1f}점)은 하반기 '
-                  f'{_needed_for_annual_pass(worst["총점"]):.0f}점 필요. 변동형 KPI + 안전점검 진척도 동시 집중 관리 시급.')
-    elif is_final:
-        title, action = f'🚨 연간 850점 미만 {len(danger)}개', '하반기에도 850점 미만. 근본 원인 분석 및 내년도 개선 계획 필요.'
-    else:
-        title, action = f'위험 센터 {len(danger)}개', '해당 센터의 변동형 KPI 회복과 안전점검 진척도를 우선 점검하세요.'
+    if severe.empty:
+        return None
 
-    return Insight('🚨', title, f'**{names}**{extra} 센터가 850점 미만입니다.', 'danger', 2, action)
+    names = ", ".join(severe["센터명"].head(3).tolist())
+    extra = f" 외 {len(severe) - 3}개" if len(severe) > 3 else ""
+
+    return Insight(
+        icon="🚨",
+        title=f"반기 마감 851점 미만 전망 {len(severe)}개",
+        message=(
+            f"**{names}**{extra} 센터의 반기말 예상점수가 "
+            f"{DANGER_THRESHOLD}점 미만입니다."
+        ),
+        category="danger",
+        priority=2,
+        action="해당 센터는 즉시 원인 진단과 KPI별 회복 목표 설정이 필요합니다.",
+    )
+
 
 
 def insight_safety_progress(df: pd.DataFrame, latest) -> Optional[Insight]:
@@ -789,9 +894,9 @@ def get_all_insights(
 
     candidates = [
         insight_overall_score(df, latest, prev, df_last_year),
-        insight_achievers(df, latest),
-        insight_below_target(df, latest),
-        insight_danger_zone(df, latest),
+        insight_achievers(df, latest, df_last_year),
+        insight_below_target(df, latest, df_last_year),
+        insight_danger_zone(df, latest, df_last_year),
         insight_safety_progress(df, latest),
         insight_volatile_kpi_drop(df, latest, prev, df_last_year),
         insight_volatile_kpi_rising(df, latest, prev, df_last_year),
