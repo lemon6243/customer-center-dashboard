@@ -51,6 +51,15 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     df_last_year = st.session_state.get('df_last_year', None)
     # 반기 시작월(1월/7월)은 직전 반기가 아니라 작년 동월과 비교
+    # 최신 평가월 확인
+    latest_month_dt = None
+    
+    if '평가월' in df.columns and not df.empty:
+        month_series = pd.to_datetime(df['평가월'], errors='coerce').dropna()
+
+        if not month_series.empty:
+            latest_month_dt = month_series.max()
+
     is_half_start_month = _is_half_start(latest_month_dt) if latest_month_dt is not None else False
 
     if is_half_start_month and df_last_year is not None and not df_last_year.empty:
