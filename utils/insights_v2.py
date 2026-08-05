@@ -147,59 +147,83 @@ def insight_overall_score(
     if df_latest.empty:
         return None
 
-    avg = df_latest['총점'].mean()
+    avg = df_latest["총점"].mean()
     n_centers = len(df_latest)
-
-    delta_msg = ''
-    df_compare, compare_label = _comparison_data(df, latest, prev, df_last_year)
-    if not df_compare.empty and '총점' in df_compare.columns:
-        compare_avg = df_compare['총점'].mean()
-        delta = avg - compare_avg
-        arrow = '🔺' if delta > 0 else ('🔻' if delta < 0 else '➡️')
-        delta_msg = f' ({compare_label} 대비 {arrow} {abs(delta):.1f}점)'
-
     is_final = _is_half_end(latest)
+    is_start = _is_half_start(latest)
     half_label = _get_half(_to_month_int(latest))
 
-    if avg >= TARGET_TOTAL:
-        category = 'success'
-        action = (
-            f'{half_label} 평균 911점 이상 달성. 현재 페이스면 연간 pass 안정권입니다.'
-            if is_final else
-            '현재 페이스 유지하며 우수 센터의 성공 요인을 확산해 보세요.'
+    df_compare, compare_label = _comparison_data(df, latest, prev, df_last_year)
+    delta_msg = ""
+    delta = None
+    if not df_compare.empty and "총점" in df_compare.columns:
+        compare_avg = df_compare["총점"].mean()
+        delta = avg - compare_avg
+        arrow = "🔺" if delta > 0 else ("🔻" if delta < 0 else "➡️")
+        delta_msg = f" ({compare_label} 대비 {arrow} {abs(delta):.1f}점)"
+
+    # 진행 중에는 911점과 현재점수를 직접 비교하지 않고, 반기 최종 전망으로 판정
+    if not is_final:
+        outlook = get_half_outlook(df, latest, df_last_year)
+        avg_forecast = outlook["현실전망"].mean() if not outlook.empty else None
+
+        if avg_forecast is not None and avg_forecast >= TARGET_TOTAL:
+            category = "success"
+            action = (
+                f"반기 최종 평균 **{avg_forecast:.1f}점 전망**으로 911점 달성 페이스입니다. "
+                "현재 반기 누적점수 자체가 낮아도 정상입니다."
+            )
+        elif avg_forecast is not None and avg_forecast >= 895:
+            category = "info"
+            action = f"반기 최종 평균 **{avg_forecast:.1f}점 전망**입니다. 변동형 KPI 관리로 911점 도달이 가능합니다."
+        elif avg_forecast is not None:
+            category = "warning"
+            action = f"반기 최종 평균 **{avg_forecast:.1f}점 전망**입니다. 안전점검과 변동형 KPI의 페이스 점검이 필요합니다."
+        else:
+            category = "info"
+            action = "작년 동일 반기 데이터가 부족해 현재 누적점수와 전년 동월 비교를 중심으로 표시합니다."
+
+        title = f"{half_label} {(_to_month_int(latest) - 6) if half_label == '하반기' else _to_month_int(latest)}개월차 평균"
+        return Insight(
+            icon="📊",
+            title=title,
+            message=f"전체 {n_centers}개 센터 평균 **{avg:.1f}점**{delta_msg}",
+            category=category,
+            priority=1,
+            action=action,
         )
+
+    # 반기 마감일에만 현재 점수로 최종 판정
+    if avg >= TARGET_TOTAL:
+        category = "success"
+        action = f"{half_label} 평균 911점 이상 달성. 현재 페이스면 연간 pass 안정권입니다."
     elif avg >= 880:
-        category = 'info'
-        if is_final and half_label == '상반기':
-            action = (
-                f'{half_label} 평균 {avg:.1f}점. 연간 pass(평균 911점)를 위해 '
-                f'**하반기 평균 {_needed_for_annual_pass(avg):.0f}점** 필요.'
-            )
-        elif is_final:
-            action = f'{half_label} 최종 평균 {avg:.1f}점. 연간 종료. 개선 계획 필요.'
-        else:
-            action = f'전체 평균 911점까지 {TARGET_TOTAL - avg:.0f}점 부족.'
+        category = "info"
+        action = (
+            f"{half_label} 평균 {avg:.1f}점. 연간 pass(평균 911점)를 위해 "
+            f"**하반기 평균 {_needed_for_annual_pass(avg):.0f}점** 필요."
+            if half_label == "상반기"
+            else f"{half_label} 최종 평균 {avg:.1f}점. 개선 계획이 필요합니다."
+        )
     else:
-        category = 'warning'
-        if is_final and half_label == '상반기':
-            action = (
-                f'{half_label} 평균 {avg:.1f}점(880점 미만). 연간 pass 위해 '
-                f'하반기 평균 **{_needed_for_annual_pass(avg):.0f}점** 필요 — 강력한 회복 전략 시급.'
-            )
-        elif is_final:
-            action = f'{half_label} 최종 평균이 880점 미만입니다. 근본 원인 분석 필요.'
-        else:
-            action = '평균이 880점 미만입니다. 안전점검 진척도와 변동형 KPI를 동시에 점검하세요.'
+        category = "warning"
+        action = f"{half_label} 최종 평균이 880점 미만입니다. 근본 원인 분석이 필요합니다."
 
     return Insight(
-        icon='📊',
-        title=f'{half_label} 최종 평균 점수' if is_final else '전체 평균 점수',
-        message=f'전체 {n_centers}개 센터 평균 **{avg:.1f}점**{delta_msg}',
-        category=category, priority=1, action=action,
+        icon="📊",
+        title=f"{half_label} 최종 평균 점수",
+        message=f"전체 {n_centers}개 센터 평균 **{avg:.1f}점**{delta_msg}",
+        category=category,
+        priority=1,
+        action=action,
     )
 
 
 def insight_achievers(df: pd.DataFrame, latest) -> Optional[Insight]:
+        # 반기 진행 중에는 현재 누적점수로 911/850 위험을 판정하지 않는다.
+    if not _is_half_end(latest):
+        return None
+
     df_latest = _filter_by_month(df, latest)
     if df_latest.empty:
         return None
@@ -237,6 +261,10 @@ def insight_achievers(df: pd.DataFrame, latest) -> Optional[Insight]:
 
 
 def insight_below_target(df: pd.DataFrame, latest) -> Optional[Insight]:
+    # 반기 진행 중에는 현재 누적점수로 911/850 위험을 판정하지 않는다.
+    if not _is_half_end(latest):
+        return None
+
     df_latest = _filter_by_month(df, latest)
     if df_latest.empty:
         return None
@@ -279,6 +307,10 @@ def insight_below_target(df: pd.DataFrame, latest) -> Optional[Insight]:
 
 
 def insight_danger_zone(df: pd.DataFrame, latest) -> Optional[Insight]:
+    # 반기 진행 중에는 현재 누적점수로 911/850 위험을 판정하지 않는다.
+    if not _is_half_end(latest):
+        return None
+ 
     df_latest = _filter_by_month(df, latest)
     if df_latest.empty:
         return None
@@ -412,6 +444,10 @@ def insight_volatile_kpi_rising(
 
 
 def insight_near_miss(df: pd.DataFrame, latest) -> Optional[Insight]:
+    # 반기 진행 중에는 현재 누적점수로 911/850 위험을 판정하지 않는다.
+    if not _is_half_end(latest):
+        return None
+
     df_latest = _filter_by_month(df, latest)
     if df_latest.empty:
         return None
@@ -436,77 +472,137 @@ def insight_near_miss(df: pd.DataFrame, latest) -> Optional[Insight]:
 # ==================== 반기 전망 함수 ====================
 
 def predict_half_total(
-    df: pd.DataFrame, center: str, current_month=None, df_last_year: Optional[pd.DataFrame] = None
+    df: pd.DataFrame,
+    center: str,
+    current_month=None,
+    df_last_year: Optional[pd.DataFrame] = None,
 ) -> Optional[Dict]:
-    df_c = df[df['센터명'] == center].copy()
-    if df_c.empty:
+    """
+    반기 최종점수 전망.
+
+    우선순위
+    1) 작년 같은 반기의 '현재월 점수 / 반기 최종점수' 진행률을 이용해 전망
+    2) 작년 비교 데이터가 없으면 반기 경과개월 기준 단순 페이스로 전망
+
+    예: 작년 7월 500점, 작년 12월 950점(진행률 52.6%)이고
+        올해 7월 530점이면 → 530 / 0.526 = 약 1,000점 전망.
+    """
+    if df is None or df.empty:
         return None
 
-    df_c['_month_dt'] = pd.to_datetime(df_c['평가월'], errors='coerce')
-    df_c = df_c.dropna(subset=['_month_dt']).sort_values('_month_dt')
-    if df_c.empty:
-        return None
-
+    current_month = pd.Timestamp(current_month) if current_month is not None else _safe_latest_month(df)
     if current_month is None:
-        current_month = df_c['_month_dt'].max()
-    current_month = pd.Timestamp(current_month)
-    df_c = df_c[df_c['_month_dt'] <= current_month]
-    if df_c.empty:
         return None
 
     cur_month_int = current_month.month
     half = _get_half(cur_month_int)
-    half_months = range(1, 7) if half == '상반기' else range(7, 13)
-    # 반기 리셋: 직전 반기(예: 6월)를 전망 추세에 포함하지 않는다.
-    df_c = df_c[df_c['_month_dt'].dt.month.isin(half_months)].sort_values('_month_dt')
+    half_months = list(range(1, 7)) if half == "상반기" else list(range(7, 13))
+    half_last = _get_half_last_month(half)
+    elapsed_months = cur_month_int if half == "상반기" else cur_month_int - 6
+    remaining = half_last - cur_month_int
+    is_final = remaining == 0
+    merged_flag = center in MERGED_CENTERS
+
+    # 올해: 현재 반기 데이터만 사용. 6월↔7월 데이터가 절대 섞이지 않게 한다.
+    df_c = df[df["센터명"] == center].copy()
+    if df_c.empty:
+        return None
+    df_c["_month_dt"] = pd.to_datetime(df_c["평가월"], errors="coerce")
+    df_c = df_c.dropna(subset=["_month_dt"])
+    df_c = df_c[
+        (df_c["_month_dt"] <= current_month)
+        & (df_c["_month_dt"].dt.month.isin(half_months))
+    ].sort_values("_month_dt")
     if df_c.empty:
         return None
 
-    half_last = _get_half_last_month(half)
-    remaining = half_last - cur_month_int
-    is_final = remaining == 0
-    current_score = float(df_c['총점'].iloc[-1])
-
-    current_penalty = 0
-    if '주의경고' in df_c.columns:
-        penalty = df_c['주의경고'].iloc[-1]
+    current_score = float(df_c["총점"].iloc[-1])
+    current_penalty = 0.0
+    if "주의경고" in df_c.columns:
+        penalty = df_c["주의경고"].iloc[-1]
         current_penalty = float(0 if pd.isna(penalty) else penalty)
 
-    if is_final:
-        predicted_realistic = predicted_optimistic = current_score
-    else:
-        recent = df_c.tail(min(4, len(df_c)))
-        diffs = recent['총점'].diff().dropna()
-        avg_pace = diffs.mean() if not diffs.empty else 0
-        predicted_realistic = current_score + avg_pace * remaining
-        optimistic_pace = max(avg_pace, 80 / max(remaining, 1))
-        predicted_optimistic = min(current_score + optimistic_pace * remaining, PERFECT_TOTAL)
-
+    # 작년 같은 센터·같은 반기의 현재월 점수와 반기 마지막 점수
     last_year_reference = None
-    merged_flag = center in MERGED_CENTERS
-    if df_last_year is not None and not merged_flag:
-        df_ly = df_last_year[df_last_year['센터명'] == center].copy()
-        if not df_ly.empty:
-            df_ly['_month_dt'] = pd.to_datetime(df_ly['평가월'], errors='coerce')
-            df_ly = df_ly.dropna(subset=['_month_dt'])
-            # 현재와 같은 월(따라서 동일 반기)의 작년 실적을 참고값으로 사용
-            df_ly = df_ly[df_ly['_month_dt'].dt.month == cur_month_int].sort_values('_month_dt')
-            if not df_ly.empty:
-                last_year_reference = float(df_ly['총점'].iloc[-1])
+    last_year_final = None
+    progress_ratio = None
 
-    h2_needed = _needed_for_annual_pass(current_score) if is_final and half == '상반기' else None
+    if df_last_year is not None and not df_last_year.empty and not merged_flag:
+        df_ly = df_last_year[df_last_year["센터명"] == center].copy()
+        if not df_ly.empty:
+            df_ly["_month_dt"] = pd.to_datetime(df_ly["평가월"], errors="coerce")
+            df_ly = df_ly.dropna(subset=["_month_dt"])
+            df_ly = df_ly[df_ly["_month_dt"].dt.month.isin(half_months)].sort_values("_month_dt")
+
+            same_month = df_ly[df_ly["_month_dt"].dt.month == cur_month_int]
+            if not same_month.empty:
+                last_year_reference = float(same_month["총점"].iloc[-1])
+
+            # 해당 반기의 마지막 월(6월/12월)이 있으면 최종점수로 사용.
+            # 아직 없다면 작년 데이터에 존재하는 마지막 월을 참고값으로 사용.
+            final_row = df_ly[df_ly["_month_dt"].dt.month == half_last]
+            if not final_row.empty:
+                last_year_final = float(final_row["총점"].iloc[-1])
+            elif not df_ly.empty:
+                last_year_final = float(df_ly["총점"].iloc[-1])
+
+            if (
+                last_year_reference is not None
+                and last_year_final is not None
+                and last_year_reference > 0
+                and last_year_final > 0
+            ):
+                ratio = last_year_reference / last_year_final
+                # 비정상 데이터 방어: 현재월 진행률은 5~100% 범위만 인정
+                if 0.05 <= ratio <= 1.0:
+                    progress_ratio = ratio
+
     if is_final:
-        safety = '달성' if current_score >= TARGET_TOTAL else ('근접미달' if current_score >= 895 else '미달')
+        predicted_realistic = current_score
+        predicted_optimistic = current_score
+        forecast_basis = "반기 확정"
     else:
-        safety = '안전' if predicted_realistic >= TARGET_TOTAL else ('주의' if predicted_realistic >= 895 else '위험')
+        # 작년 같은 반기의 누적 진행 패턴이 있으면 가장 신뢰도 높은 전망으로 사용
+        if progress_ratio is not None:
+            predicted_realistic = min(current_score / progress_ratio, PERFECT_TOTAL)
+            forecast_basis = "작년 동일 반기 진행률"
+        else:
+            # 작년 데이터가 없는 센터는 반기 경과 개월 수 기준으로 환산
+            predicted_realistic = min(current_score / max(elapsed_months, 1) * 6, PERFECT_TOTAL)
+            forecast_basis = "반기 경과개월 환산"
+
+        # 낙관 전망: 현실 전망보다 낮지 않도록만 처리
+        predicted_optimistic = max(predicted_realistic, min(PERFECT_TOTAL, current_score + (PERFECT_TOTAL - current_score) * 0.65))
+
+    # 안전/주의/위험은 '현재 누적점수'가 아니라 '반기 최종 전망'으로 판정한다.
+    if is_final:
+        safety = "달성" if current_score >= TARGET_TOTAL else ("근접미달" if current_score >= 895 else "미달")
+        gap_to_target = TARGET_TOTAL - current_score
+    else:
+        safety = "안전" if predicted_realistic >= TARGET_TOTAL else ("주의" if predicted_realistic >= 895 else "위험")
+        gap_to_target = TARGET_TOTAL - predicted_realistic
+
+    h2_needed = _needed_for_annual_pass(current_score) if is_final and half == "상반기" else None
 
     return {
-        'center': center, 'half': half, 'is_final': is_final, 'current_score': current_score,
-        'current_month': cur_month_int, 'remaining_months': remaining,
-        'predicted_optimistic': predicted_optimistic, 'predicted_realistic': predicted_realistic,
-        'last_year_reference': last_year_reference, 'merged_flag': merged_flag,
-        'gap_to_target': TARGET_TOTAL - (current_score if is_final else predicted_realistic),
-        'safety_level': safety, 'current_penalty': current_penalty, 'h2_needed_for_pass': h2_needed,
+        "center": center,
+        "half": half,
+        "is_final": is_final,
+        "current_score": current_score,
+        "current_month": cur_month_int,
+        "elapsed_months": elapsed_months,
+        "remaining_months": remaining,
+        "predicted_optimistic": predicted_optimistic,
+        "predicted_realistic": predicted_realistic,
+        "last_year_reference": last_year_reference,
+        "last_year_final": last_year_final,
+        "progress_ratio": progress_ratio,
+        "forecast_basis": forecast_basis,
+        "merged_flag": merged_flag,
+        "gap_to_target": gap_to_target,
+        "safety_level": safety,
+        "current_penalty": current_penalty,
+        "h2_needed_for_pass": h2_needed,
     }
 
 
@@ -534,6 +630,9 @@ def get_half_outlook(
             '통합여부': '🆕 통합' if result['merged_flag'] else '',
             '현재감점': result['current_penalty'],
             '작년참고': round(result['last_year_reference'], 1) if result['last_year_reference'] is not None else None,
+            "전망근거": result["forecast_basis"],
+            "작년진행률": round(result["progress_ratio"] * 100, 1) if result["progress_ratio"] is not None else None,
+
         }
         if not is_final:
             row.update({'낙관전망': round(result['predicted_optimistic'], 1), '현실전망': round(result['predicted_realistic'], 1)})
