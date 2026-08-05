@@ -276,11 +276,13 @@ GLOBAL_CSS = f"""
     }}
 
     .yesco-metric-footer {{
-        min-height: 20px;
-        margin-top: 6px;
-        font-size: 12px;
-        line-height: 1.4;
+        min-height: 22px;
+        margin-top: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.45;
     }}
+
 
     @media (max-width: 768px) {{
         .main-header {{
