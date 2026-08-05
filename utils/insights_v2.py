@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from typing import Optional, List, Dict, Tuple
 import pandas as pd
 import numpy as np
+from utils.prediction import add_predictions_to_df
+
 
 # ==================== 상수 정의 ====================
 
@@ -607,43 +609,137 @@ def predict_half_total(
 
 
 def get_half_outlook(
-    df: pd.DataFrame, current_month=None, df_last_year: Optional[pd.DataFrame] = None
+    df: pd.DataFrame,
+    current_month=None,
+    df_last_year: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
+    """
+    성과분석(overview.py)과 동일한 예측 로직으로 반기 전망 생성.
+
+    공통 예측 기준
+    - 누적형 KPI: 반기 진행률 기준 환산
+    - 비누적형 KPI: 현재 점수 유지
+    - 예측점수: 최대 1,000점
+    """
+    if df is None or df.empty:
+        return pd.DataFrame()
+
     if current_month is None:
         current_month = _safe_latest_month(df)
+
     if current_month is None:
         return pd.DataFrame()
 
-    df_latest = _filter_by_month(df, current_month)
+    current_month = pd.Timestamp(current_month)
+    month_num = current_month.month
+    period_month = month_num if month_num <= 6 else month_num - 6
+    half_label = _get_half(month_num)
+    is_final = period_month >= 6
+
+    df_latest = _filter_by_month(df, current_month).copy()
+
     if df_latest.empty:
         return pd.DataFrame()
 
-    is_final, half = _is_half_end(current_month), _get_half(_to_month_int(current_month))
-    rows = []
-    for center in df_latest['센터명'].dropna().unique():
-        result = predict_half_total(df, center, current_month, df_last_year)
-        if result is None:
-            continue
-        row = {
-            '센터명': result['center'], '현재점수': round(result['current_score'], 1),
-            '목표차이': round(result['gap_to_target'], 1), '안전도': result['safety_level'],
-            '통합여부': '🆕 통합' if result['merged_flag'] else '',
-            '현재감점': result['current_penalty'],
-            '작년참고': round(result['last_year_reference'], 1) if result['last_year_reference'] is not None else None,
-            "전망근거": result["forecast_basis"],
-            "작년진행률": round(result["progress_ratio"] * 100, 1) if result["progress_ratio"] is not None else None,
+    # ⭐ 성과분석과 동일한 예측 함수 사용
+    df_predicted = add_predictions_to_df(df_latest, period_month)
 
+    rows = []
+
+    for _, row in df_predicted.iterrows():
+        center = str(row.get("센터명", ""))
+
+        current_score = pd.to_numeric(row.get("총점"), errors="coerce")
+        current_score = float(current_score) if pd.notna(current_score) else 0.0
+
+        predicted_score = pd.to_numeric(row.get("예측점수"), errors="coerce")
+        predicted_score = float(predicted_score) if pd.notna(predicted_score) else current_score
+
+        # 반기 마감월은 예측점수 = 실제 점수
+        final_score = current_score if is_final else predicted_score
+
+        # 진행 중: 예측 반기 마감점수 기준 판정
+        if is_final:
+            if final_score >= TARGET_TOTAL:
+                safety = "달성"
+            elif final_score >= 895:
+                safety = "근접미달"
+            else:
+                safety = "미달"
+        else:
+            if final_score >= TARGET_TOTAL:
+                safety = "안전"
+            elif final_score >= 895:
+                safety = "주의"
+            else:
+                safety = "위험"
+
+        # 작년 동일 월 참고점수
+        last_year_reference = None
+
+        if df_last_year is not None and not df_last_year.empty:
+            ly = df_last_year.copy()
+            ly["_month_dt"] = pd.to_datetime(ly["평가월"], errors="coerce")
+
+            ly_row = ly[
+                (ly["센터명"] == center)
+                & (ly["_month_dt"].dt.month == month_num)
+            ]
+
+            if not ly_row.empty:
+                ly_score = pd.to_numeric(ly_row.iloc[-1].get("총점"), errors="coerce")
+
+                if pd.notna(ly_score):
+                    last_year_reference = float(ly_score)
+
+        # 감점
+        current_penalty = 0.0
+
+        for col in ["민원대응적정성", "주의경고", "가점"]:
+            value = pd.to_numeric(row.get(col, 0), errors="coerce")
+
+            if pd.notna(value):
+                current_penalty += float(value)
+
+        result = {
+            "센터명": center,
+            "현재점수": round(current_score, 1),
+            "현실전망": round(final_score, 1),
+            # 기존 home.py 호환용: 별도 낙관 전망은 사용하지 않음
+            "낙관전망": round(final_score, 1),
+            "목표차이": round(TARGET_TOTAL - final_score, 1),
+            "안전도": safety,
+            "현재감점": round(current_penalty, 1),
+            "작년참고": round(last_year_reference, 1) if last_year_reference is not None else None,
+            "통합여부": "🆕 통합" if center in MERGED_CENTERS else "",
+            "전망근거": (
+                "반기 최종 확정"
+                if is_final
+                else f"성과분석 공통 예측 · 반기 {period_month}/6개월 진행"
+            ),
         }
-        if not is_final:
-            row.update({'낙관전망': round(result['predicted_optimistic'], 1), '현실전망': round(result['predicted_realistic'], 1)})
-        if is_final and half == '상반기' and result['h2_needed_for_pass'] is not None:
-            row['하반기필요점수'] = round(result['h2_needed_for_pass'], 1)
-        rows.append(row)
+
+        # 상반기 마감 시: 하반기 만회 필요 점수
+        if is_final and half_label == "상반기":
+            result["하반기필요점수"] = round(
+                _needed_for_annual_pass(current_score),
+                1,
+            )
+
+        rows.append(result)
 
     if not rows:
         return pd.DataFrame()
-    out = pd.DataFrame(rows)
-    return out.sort_values('현재점수' if is_final else '현실전망', ascending=False).reset_index(drop=True)
+
+    result_df = pd.DataFrame(rows)
+
+    sort_col = "현재점수" if is_final else "현실전망"
+
+    return result_df.sort_values(
+        sort_col,
+        ascending=False,
+    ).reset_index(drop=True)
+
 
 
 def insight_half_strategy(
@@ -824,34 +920,48 @@ def get_change_ranking(
 
 
 def get_pace_lag_ranking(
-    df: pd.DataFrame, n: int = 5, df_last_year: Optional[pd.DataFrame] = None
+    df: pd.DataFrame,
+    n: int = 5,
+    df_last_year: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
+    """
+    진행 중인 반기의 페이스 위험 센터.
+
+    성과분석과 동일한 예측점수 기준으로
+    반기 최종 예상점수가 895점 미만인 센터만 반환.
+    """
     if df is None or df.empty:
         return pd.DataFrame()
+
     latest = _safe_latest_month(df)
+
     if latest is None or _is_half_end(latest):
         return pd.DataFrame()
 
-    df_latest = _filter_by_month(df, latest)
-    if df_latest.empty:
+    outlook = get_half_outlook(
+        df,
+        current_month=latest,
+        df_last_year=df_last_year,
+    )
+
+    if outlook.empty:
         return pd.DataFrame()
 
-    rows = []
-    for center in df_latest['센터명'].dropna().unique():
-        result = predict_half_total(df, center, latest, df_last_year)
-        if (
-            result is None or result['current_score'] >= TARGET_TOTAL
-            or result['predicted_realistic'] >= TARGET_TOTAL
-        ):
-            continue
-        rows.append({
-            '센터명': result['center'], '총점': round(result['current_score'], 1),
-            '예상점수': round(result['predicted_realistic'], 1),
-            '부족분': round(result['gap_to_target'], 1),
-            '변화량': round(result['gap_to_target'], 1),
-        })
+    risk_df = outlook[outlook["안전도"] == "위험"].copy()
 
-    if not rows:
+    if risk_df.empty:
         return pd.DataFrame()
-    return pd.DataFrame(rows).sort_values('부족분', ascending=False).head(n).reset_index(drop=True)
+
+    risk_df["총점"] = risk_df["현재점수"]
+    risk_df["예상점수"] = risk_df["현실전망"]
+    risk_df["부족분"] = risk_df["목표차이"]
+    risk_df["변화량"] = risk_df["목표차이"]
+
+    return risk_df[
+        ["센터명", "총점", "예상점수", "부족분", "변화량"]
+    ].sort_values(
+        "부족분",
+        ascending=False,
+    ).head(n).reset_index(drop=True)
+
     return result_df
