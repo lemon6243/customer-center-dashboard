@@ -277,4 +277,81 @@ def find_minimum_combo(
         adjustment,
     )
 
+    def get_improvement_actions(
+    baseline_kpis: Dict[str, float],
+    adjustment: float = 0.0,
+    target: float = TARGET_TOTAL,
+    top_n: int = 3,
+) -> list[Dict[str, float]]:
+    """
+    911점 달성을 위해 우선 개선할 KPI 목록 반환.
+
+    반환 예:
+    [
+        {
+            "KPI": "안전점검실점검율",
+            "현재전망": 82.0,
+            "목표값": 90.0,
+            "필요상승": 8.0,
+            "예상기여점수": 44.0,
+        }
+    ]
+    """
+    baseline_result = calculate_simulated_score(
+        baseline_kpis=baseline_kpis,
+        simulated_kpis=baseline_kpis,
+        adjustment=adjustment,
+    )
+
+    # 이미 목표 달성권이면 개선 제안 없음
+    if baseline_result.predicted_score >= target:
+        return []
+
+    min_combo = find_minimum_combo(
+        baseline_kpis,
+        adjustment,
+        target,
+    )
+
+    # 모든 KPI를 올려도 목표 달성 불가
+    if min_combo is None:
+        return []
+
+    actions = []
+
+    for kpi in list(CUMULATIVE_KPIS) + list(VARIABLE_KPIS):
+        current = baseline_kpis.get(kpi, 0.0)
+        goal = min_combo.get(kpi, current)
+        increase = goal - current
+
+        if increase <= 0.05:
+            continue
+
+        # 해당 KPI만 목표값까지 조정했을 때의 기여 점수
+        one_kpi_changed = baseline_kpis.copy()
+        one_kpi_changed[kpi] = goal
+
+        changed_result = calculate_simulated_score(
+            baseline_kpis=baseline_kpis,
+            simulated_kpis=one_kpi_changed,
+            adjustment=adjustment,
+        )
+
+        contribution = changed_result.predicted_score - baseline_result.predicted_score
+
+        actions.append({
+            "KPI": kpi,
+            "현재전망": round(current, 1),
+            "목표값": round(goal, 1),
+            "필요상승": round(increase, 1),
+            "예상기여점수": round(contribution, 1),
+        })
+
+    return sorted(
+        actions,
+        key=lambda x: x["예상기여점수"],
+        reverse=True,
+    )[:top_n]
+
+
     return current if final_result.predicted_score >= target else None
