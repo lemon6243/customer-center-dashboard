@@ -133,12 +133,17 @@ def load_latest_data_from_github() -> Tuple[Optional[pd.DataFrame], Optional[pd.
         if any(c not in df_current.columns for c in required_scores):
             df_current = calculate_scores(df_current)
         # GitHub 자동 로드 데이터도 업로드 데이터와 동일하게 검증
-        is_valid, validation_errors = validate_cumulative_data(df_current)
+        is_valid, validation_errors, validation_warnings = validate_cumulative_data(df_current)
+
+        # 관리자 전용 화면에서 표시할 수 있도록 보관
+        st.session_state["data_validation_errors"] = validation_errors
+        st.session_state["data_validation_warnings"] = validation_warnings
         
+        # 오류는 데이터 사용을 막아야 하므로 관리자 여부와 무관하게 표시
         if not is_valid:
-            for msg in validation_errors:
-                st.error(msg)
+            st.error("데이터 검증 오류가 있습니다. 관리자에게 문의해주세요.")
             return None, df_last
+
 
         
         # 작년 데이터는 점수 재계산하지 않음 (구조가 다르므로 총점 그대로 사용)
