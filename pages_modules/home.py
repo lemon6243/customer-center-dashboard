@@ -8,6 +8,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import re
 
 from utils.styles import Colors, ScoreThresholds, get_score_color, PLOTLY_LAYOUT
 from utils.helpers import safe_unique_centers
@@ -472,11 +473,26 @@ def _render_insights(insights, device_type: str):
     for idx, ins in enumerate(insights):
         color = category_colors.get(ins.category, Colors.PRIMARY)
         col = cols[idx % n_cols]
-
+    
+        # 인사이트 문자열의 **굵게** 표기를 HTML <b> 태그로 변환
+        message_html = re.sub(
+            r"\*\*(.*?)\*\*",
+            r"<b>\1</b>",
+            str(ins.message or ""),
+        )
+    
+        action = getattr(ins, "action", None)
         action_html = ""
-        action = getattr(ins, 'action', None)
+    
         if action:
+            action_text_html = re.sub(
+                r"\*\*(.*?)\*\*",
+                r"<b>\1</b>",
+                str(action),
+            )
+    
             action_bg = _to_rgba(color, 0.08)
+    
             action_html = (
                 f'<div style="background:{action_bg};'
                 f'border-radius:6px;padding:8px 12px;margin-top:10px;'
@@ -484,9 +500,10 @@ def _render_insights(insights, device_type: str):
                 f'<div style="color:{color};font-size:12px;font-weight:700;'
                 f'margin-bottom:3px;">💡 권장 액션</div>'
                 f'<div style="color:{Colors.TEXT_MAIN};font-size:13px;'
-                f'line-height:1.5;">{action}</div>'
+                f'line-height:1.5;">{action_text_html}</div>'
                 f'</div>'
             )
+
 
         with col:
             html = (
@@ -500,7 +517,7 @@ def _render_insights(insights, device_type: str):
                 f'<span style="color:{color};font-size:14px;font-weight:700;">{ins.title}</span>'
                 f'</div>'
                 f'<div style="color:{Colors.TEXT_MAIN};font-size:14px;line-height:1.5;">'
-                f'{ins.message}'
+                f'{message_html}'
                 f'</div>'
                 f'{action_html}'
                 f'</div>'
