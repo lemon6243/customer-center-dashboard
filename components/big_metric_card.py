@@ -1,66 +1,83 @@
 """
-홈 화면용 큰 KPI 카드 컴포넌트
-- 임원/관리자가 30초 안에 핵심 지표를 파악할 수 있도록 시각적 강조
+홈 화면 핵심 지표 카드 컴포넌트
+- 모든 카드의 높이·여백·값 위치를 동일하게 유지
 """
+
 import streamlit as st
+
 from utils.styles import Colors, get_score_color
+
+
+def _footer_html(text: str | None, color: str | None = None) -> str:
+    """카드 하단 보조문구 HTML"""
+    if not text:
+        return '<div class="yesco-metric-footer"></div>'
+
+    text_color = color or Colors.TEXT_SUB
+
+    return (
+        f'<div class="yesco-metric-footer" '
+        f'style="color:{text_color};">{text}</div>'
+    )
+
+
+def _render_metric_card(
+    label: str,
+    value_html: str,
+    icon: str,
+    accent_color: str,
+    footer: str | None = None,
+    footer_color: str | None = None,
+    help_text: str | None = None,
+):
+    """통일된 핵심지표 카드 렌더링"""
+    help_attr = f'title="{help_text}"' if help_text else ""
+
+    html = f"""
+    <div class="yesco-metric-card" {help_attr}
+         style="border-top:3px solid {accent_color};">
+        <div class="yesco-metric-header">
+            <span style="font-size:18px;line-height:1;">{icon}</span>
+            <span class="yesco-metric-label">{label}</span>
+        </div>
+        <div class="yesco-metric-value" style="color:{accent_color};">
+            {value_html}
+        </div>
+        {_footer_html(footer, footer_color)}
+    </div>
+    """
+
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def big_metric_card(
     label: str,
     value: str,
     delta: str = None,
-    delta_color: str = "normal",  # "normal", "inverse", "off"
+    delta_color: str = "normal",
     icon: str = "📊",
     help_text: str = None,
 ):
-    """
-    큰 메트릭 카드 (홈 화면용)
-    
-    Args:
-        label: 지표 이름 (예: "전체 평균 점수")
-        value: 메인 값 (예: "887.3")
-        delta: 변화량 (예: "+12.5 vs 전월")
-        delta_color: "normal"(상승=초록), "inverse"(상승=빨강), "off"(회색)
-        icon: 아이콘 이모지
-        help_text: 도움말 (마우스 호버 시 표시)
-    """
-    # delta 색상 결정
+    """일반 텍스트 값 핵심지표 카드"""
+    footer_color = Colors.TEXT_SUB
+
     if delta and delta_color != "off":
-        is_positive = delta.strip().startswith("+")
+        is_positive = delta.strip().startswith("+") or "▲" in delta
+
         if delta_color == "normal":
-            color = Colors.SUCCESS if is_positive else Colors.DANGER
-        else:  # inverse
-            color = Colors.DANGER if is_positive else Colors.SUCCESS
-        delta_html = f'<div style="color:{color}; font-size:14px; font-weight:600; margin-top:4px;">{delta}</div>'
-    elif delta:
-        delta_html = f'<div style="color:{Colors.TEXT_SUB}; font-size:14px; margin-top:4px;">{delta}</div>'
-    else:
-        delta_html = ""
+            footer_color = Colors.SUCCESS if is_positive else Colors.DANGER
+        else:
+            footer_color = Colors.DANGER if is_positive else Colors.SUCCESS
 
-    help_attr = f'title="{help_text}"' if help_text else ""
-
-    html = f"""
-    <div {help_attr} style="
-        background: {Colors.BG_CARD};
-        border: 1px solid {Colors.BORDER};
-        border-left: 4px solid {Colors.PRIMARY};
-        border-radius: 12px;
-        padding: 20px 24px;
-        height: 100%;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    ">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="font-size:20px;">{icon}</span>
-            <span style="color:{Colors.TEXT_SUB}; font-size:13px; font-weight:500;">{label}</span>
-        </div>
-        <div style="color:{Colors.TEXT_MAIN}; font-size:32px; font-weight:700; line-height:1.2;">
-            {value}
-        </div>
-        {delta_html}
-    </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
+    _render_metric_card(
+        label=label,
+        value_html=value,
+        icon=icon,
+        accent_color=Colors.PRIMARY,
+        footer=delta,
+        footer_color=footer_color,
+        help_text=help_text,
+    )
 
 
 def score_big_card(
@@ -73,92 +90,64 @@ def score_big_card(
     status_text: str = None,
     show_target: bool = True,
 ):
-    """
-    점수 전용 큰 카드.
-    - color: 페이스 판정 색상을 강제로 지정할 때 사용
-    - status_text: '반기 전망 940점 · 안전 페이스' 같은 보조 문구
-    - show_target=False: 반기 진행 중 현재 점수를 911점과 직접 비교하지 않음
-    """
-    color = color or get_score_color(score)
-
-    delta_html = ""
-    if delta:
-        is_positive = delta.strip().startswith("+") or "▲" in delta
-        d_color = Colors.SUCCESS if is_positive else Colors.DANGER
-        delta_html = (
-            f'<div style="color:{d_color};font-size:14px;font-weight:600;margin-top:4px;">'
-            f'{delta}</div>'
-        )
+    """점수형 핵심지표 카드"""
+    accent_color = color or get_score_color(score)
 
     target_html = ""
+
     if show_target:
-        pct = (score / target * 100) if target > 0 else 0
+        pct = (score / target * 100) if target else 0
+
         target_html = (
-            f'<span style="font-size:14px;color:{Colors.TEXT_SUB};font-weight:400;">'
-            f'/ {target:,.0f} ({pct:.1f}%)</span>'
+            f'<span style="font-size:14px;font-weight:500;'
+            f'color:{Colors.TEXT_SUB};letter-spacing:0;">'
+            f' / {target:,.0f} ({pct:.1f}%)</span>'
         )
 
-    status_html = ""
-    if status_text:
-        status_html = (
-            f'<div style="color:{Colors.TEXT_SUB};font-size:12px;margin-top:5px;">'
-            f'{status_text}</div>'
-        )
+    footer = status_text or delta
+    footer_color = Colors.TEXT_SUB
 
-    html = f"""
-    <div style="
-        background:{Colors.BG_CARD};
-        border:1px solid {Colors.BORDER};
-        border-left:4px solid {color};
-        border-radius:12px;
-        padding:20px 24px;
-        height:100%;
-        box-shadow:0 1px 3px rgba(0,0,0,0.05);
-    ">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-            <span style="font-size:20px;">{icon}</span>
-            <span style="color:{Colors.TEXT_SUB};font-size:13px;font-weight:500;">{label}</span>
-        </div>
-        <div style="color:{color};font-size:32px;font-weight:700;line-height:1.2;">
-            {score:,.1f}점 {target_html}
-        </div>
-        {delta_html}
-        {status_html}
-    </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
+    if delta and not status_text:
+        is_positive = delta.strip().startswith("+") or "▲" in delta
+        footer_color = Colors.SUCCESS if is_positive else Colors.DANGER
+
+    _render_metric_card(
+        label=label,
+        value_html=f"{score:,.1f}점{target_html}",
+        icon=icon,
+        accent_color=accent_color,
+        footer=footer,
+        footer_color=footer_color,
+        help_text="진행월에는 반기말 예측 페이스를 기준으로 해석합니다.",
+    )
 
 
-
-def count_big_card(label: str, count: int, total: int = None, icon: str = "📍", color: str = None, suffix: str = "개"):
-    """
-    개수 전용 큰 카드 (예: 위험 센터 3개 / 전체 24개)
-    """
-    if color is None:
-        color = Colors.PRIMARY
+def count_big_card(
+    label: str,
+    count: int,
+    total: int = None,
+    icon: str = "📍",
+    color: str = None,
+    suffix: str = "개",
+):
+    """센터 수·건수용 핵심지표 카드"""
+    accent_color = color or Colors.PRIMARY
 
     total_html = ""
+
     if total is not None and total > 0:
         pct = count / total * 100
-        total_html = f'<span style="font-size:14px; color:{Colors.TEXT_SUB}; font-weight:400;"> / {total}{suffix} ({pct:.1f}%)</span>'
 
-    html = f"""
-    <div style="
-        background: {Colors.BG_CARD};
-        border: 1px solid {Colors.BORDER};
-        border-left: 4px solid {color};
-        border-radius: 12px;
-        padding: 20px 24px;
-        height: 100%;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    ">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-            <span style="font-size:20px;">{icon}</span>
-            <span style="color:{Colors.TEXT_SUB}; font-size:13px; font-weight:500;">{label}</span>
-        </div>
-        <div style="color:{color}; font-size:32px; font-weight:700; line-height:1.2;">
-            {count}{suffix}{total_html}
-        </div>
-    </div>
-    """
-    st.markdown(html, unsafe_allow_html=True)
+        total_html = (
+            f'<span style="font-size:14px;font-weight:500;'
+            f'color:{Colors.TEXT_SUB};letter-spacing:0;">'
+            f' / {total}{suffix} ({pct:.1f}%)</span>'
+        )
+
+    _render_metric_card(
+        label=label,
+        value_html=f"{count}{suffix}{total_html}",
+        icon=icon,
+        accent_color=accent_color,
+        footer=None,
+    )
