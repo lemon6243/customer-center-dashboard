@@ -126,7 +126,7 @@ def _render_pace_risk(
                 target=TARGET_SCORE,
             )
             _render_improvement_actions(
-                df=df,
+                df=df_latest,
                 center_name=row["센터명"],
                 latest_row=row,
                 period_month=period_info["period_month"],
