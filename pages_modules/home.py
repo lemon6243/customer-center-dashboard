@@ -257,17 +257,6 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
                 )
                 _render_pace_lag_list(pace_lag_df)
 
-
-        col1, col2 = st.columns(2)
-        with col1:
-            ranking_list(
-                top_df, title=top_title.replace("🏆 ", "").replace("🥇 ", ""),
-                value_col="총점",
-                icon="🏆" if is_final_month else "🥇", use_score_color=True,
-            )
-        with col2:
-            _render_below_target_list(bottom_df, is_final_month, half_label)
-
     st.markdown("")
 
     if df_prev is not None and not df_prev.empty:
