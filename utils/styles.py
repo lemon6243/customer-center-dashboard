@@ -9,36 +9,40 @@ import streamlit as st
 # ==================== 색상 팔레트 ====================
 
 class Colors:
-    """디자인 시스템 색상 (도시가스 신뢰감 파랑 톤)"""
-    
-    # 주조색 (Primary)
-    PRIMARY = "#2563eb"          # 메인 파랑
-    PRIMARY_DARK = "#1e40af"     # 진한 파랑 (호버)
-    PRIMARY_LIGHT = "#dbeafe"    # 연한 파랑 (배경)
-    
-    # 의미색 (Semantic) - 점수 구간별
-    SUCCESS = "#16a34a"          # 달성/우수 (911점 이상)
-    WARNING = "#eab308"          # 주의 (881~910점)
-    ALERT = "#f97316"            # 경고 (851~880점)
-    DANGER = "#dc2626"           # 위험 (850점 미만)
-    
+    """YESCO 업무 대시보드 공통 색상"""
+
+    # 브랜드 기반 기본색
+    PRIMARY = "#0B4EA2"          # 신뢰감 있는 블루
+    PRIMARY_DARK = "#073A7A"
+    PRIMARY_LIGHT = "#EAF3FF"
+    PRIMARY_SOFT = "#F4F8FC"
+
+    # 의미색
+    SUCCESS = "#178A5B"          # 안전/달성
+    SUCCESS_LIGHT = "#EAF7F1"
+    WARNING = "#D48A00"          # 주의
+    WARNING_LIGHT = "#FFF6E5"
+    ALERT = "#E66A1F"
+    DANGER = "#D92D20"           # 위험
+    DANGER_LIGHT = "#FFF0EE"
+
     # 데이터 시각화
-    CURRENT = "#2563eb"          # 현재/실측
-    PREDICTED = "#7c3aed"        # 예측값
-    REFERENCE = "#64748b"        # 비교/기준선
-    
+    CURRENT = "#0B4EA2"
+    PREDICTED = "#4E7FB8"
+    REFERENCE = "#7B8794"
+
     # 배경/텍스트
-    BG_WHITE = "#ffffff"
-    BG_GRAY = "#f8fafc"
-    BG_CARD = "#ffffff"
-    TEXT_MAIN = "#1e293b"        # 본문
-    TEXT_SUB = "#64748b"         # 보조
-    TEXT_LIGHT = "#94a3b8"       # 약한 텍스트
-    BORDER = "#e2e8f0"           # 테두리
-    
+    BG_WHITE = "#FFFFFF"
+    BG_GRAY = "#F5F7FA"
+    BG_CARD = "#FFFFFF"
+    TEXT_MAIN = "#172B4D"
+    TEXT_SUB = "#5E6C84"
+    TEXT_LIGHT = "#8993A4"
+    BORDER = "#DCE3EA"
+
     # 그라데이션
-    GRADIENT_PRIMARY = "linear-gradient(135deg, #2563eb 0%, #1e40af 100%)"
-    GRADIENT_SUCCESS = "linear-gradient(135deg, #16a34a 0%, #15803d 100%)"
+    GRADIENT_PRIMARY = "linear-gradient(135deg, #0B4EA2 0%, #1769C2 100%)"
+    GRADIENT_SUCCESS = "linear-gradient(135deg, #178A5B 0%, #0F6D46 100%)"
 
 
 # ==================== 점수 구간 ====================
@@ -267,6 +271,103 @@ GLOBAL_CSS = f"""
             font-size: 1.2rem;
         }}
     }}
+
+    /* ========== YESCO 사이드바 메뉴 통일 ========== */
+    [data-testid="stSidebar"] div[role="radiogroup"] {
+        gap: 6px !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] label {
+        width: 100% !important;
+        min-height: 46px !important;
+        margin: 0 !important;
+        padding: 0 14px !important;
+        border: 1px solid #DCE3EA !important;
+        border-radius: 8px !important;
+        background: #FFFFFF !important;
+        color: #172B4D !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        display: flex !important;
+        align-items: center !important;
+        transition: background 0.15s ease, border-color 0.15s ease !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] label:hover {
+        border-color: #0B4EA2 !important;
+        background: #F4F8FC !important;
+        transform: none !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
+        background: #0B4EA2 !important;
+        border-color: #0B4EA2 !important;
+        color: #FFFFFF !important;
+        box-shadow: none !important;
+    }
+
+    [data-testid="stSidebar"] div[role="radiogroup"] label input {
+        position: absolute !important;
+        opacity: 0 !important;
+    }
+
+    /* ========== 핵심지표 카드 공통 규격 ========== */
+    .yesco-metric-card {
+        min-height: 158px;
+        height: 158px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        background: #FFFFFF;
+        border: 1px solid #DCE3EA;
+        border-radius: 10px;
+        padding: 18px 20px;
+        box-shadow: 0 2px 8px rgba(23, 43, 77, 0.05);
+    }
+
+    .yesco-metric-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 22px;
+    }
+
+    .yesco-metric-label {
+        color: #5E6C84;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    .yesco-metric-value {
+        color: #172B4D;
+        font-size: 31px;
+        font-weight: 750;
+        line-height: 1.15;
+        letter-spacing: -0.8px;
+        white-space: nowrap;
+    }
+
+    .yesco-metric-footer {
+        min-height: 20px;
+        margin-top: 6px;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    @media (max-width: 768px) {
+        .yesco-metric-card {
+            min-height: 142px;
+            height: 142px;
+            padding: 16px;
+        }
+
+        .yesco-metric-value {
+            font-size: 27px;
+        }
+    }
+
 </style>
 """
 
