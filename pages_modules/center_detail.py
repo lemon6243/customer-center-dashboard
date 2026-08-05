@@ -9,8 +9,9 @@
 import streamlit as st
 import pandas as pd
 from utils.styles import ScoreThresholds, Colors
-from utils.helpers import safe_unique_centers, get_period_info
-from utils.prediction import calculate_predicted_score
+from utils.helpers import safe_unique_centers
+from utils.half_year import get_period_info
+from utils.prediction import calculate_predicted_score, add_predictions_to_df
 from components.score_chart import create_kpi_radar_chart
 from utils.simulator import (
     get_current_kpi_values,
@@ -90,60 +91,127 @@ def show(df: pd.DataFrame, device_type: str = 'desktop'):
             st.code(traceback.format_exc())
 
 
-def _show_center_metrics(latest, predicted_score, period_info,
-                          df, all_centers, device_type):
-    """센터의 핵심 4개 지표 표시"""
-
-    col_count = 2 if device_type == 'mobile' else 4
+def _show_center_metrics(
+    latest,
+    predicted_score,
+    period_info,
+    df,
+    all_centers,
+    device_type,
+):
+    """센터 핵심 지표: 진행 중에는 반기말 예측 기준으로 표시"""
+    col_count = 2 if device_type == "mobile" else 4
     cols = st.columns(col_count)
 
     target = ScoreThresholds.TARGET
-    period_month = period_info['period_month']
-    is_half_end = period_month in (6, 12)
+    is_half_end = period_info["is_half_end"]
+    period_month = period_info["period_month"]
 
-    # 1) 현재 총점 (반기 마감 시엔 '최종 점수')
+    # 1) 현재 누적점수
     with cols[0]:
-        st.metric(
-            label="반기 최종 점수" if is_half_end else "현재 총점",
-            value=f"{latest['총점']:.1f}점",
-            delta=f"{latest['총점'] - target:.1f}점 vs 911"
-        )
-
-    # 2) 예측 또는 목표 달성 여부
-    with cols[1]:
-        if not is_half_end:
+        if is_half_end:
             st.metric(
-                label="반기 예측",
-                value=f"{predicted_score:.1f}점",
-                delta=f"{predicted_score - target:.1f}점",
-                help="진행률 기반 예측 (반기 마감 시 사라짐)"
+                label="반기 최종 점수",
+                value=f"{latest['총점']:.1f}점",
+                delta=f"{latest['총점'] - target:+.1f}점 vs 911점",
+                delta_color=(
+                    "normal" if latest["총점"] >= target else "inverse"
+                ),
             )
         else:
-            achieved = latest['총점'] >= target
+            st.metric(
+                label=f"{period_info['period_text']} 누적점수",
+                value=f"{latest['총점']:.1f}점",
+                delta="반기 누적 진행값",
+                delta_color="off",
+                help="진행 중인 반기에는 누적점수를 911점과 직접 비교하지 않습니다.",
+            )
+
+    # 2) 반기말 예측 / 마감 결과
+    with cols[1]:
+        if not is_half_end:
+            gap = predicted_score - target
+
+            if predicted_score >= target:
+                status = "안전 페이스"
+                delta_color = "normal"
+            elif predicted_score >= 895:
+                status = "주의 페이스"
+                delta_color = "off"
+            else:
+                status = "위험 페이스"
+                delta_color = "inverse"
+
+            st.metric(
+                label="반기말 예측 점수",
+                value=f"{predicted_score:.1f}점",
+                delta=f"{gap:+.1f}점 · {status}",
+                delta_color=delta_color,
+                help="성과분석·홈·위험관리 화면과 동일한 반기 진행률 기반 예측입니다.",
+            )
+        else:
+            achieved = latest["총점"] >= target
+
             st.metric(
                 label="911점 달성",
                 value="달성" if achieved else "미달",
-                delta="✅" if achieved else "❌"
+                delta=f"{latest['총점'] - target:+.1f}점",
+                delta_color="normal" if achieved else "inverse",
             )
 
     if col_count >= 3:
-        # 3) 전체 순위
+        # 3) 진행 중에는 예측점수 순위, 마감월에는 실제점수 순위
         with cols[2]:
-            latest_month_df = df[df['평가월'] == df['평가월'].max()]
-            rank = int((latest_month_df['총점'] >= latest['총점']).sum())
+            work = df.copy()
+            work["_month_dt"] = pd.to_datetime(
+                work["평가월"], errors="coerce"
+            )
+            latest_month = work["_month_dt"].max()
+
+            latest_month_df = work[
+                work["_month_dt"] == latest_month
+            ].copy()
+
+            if not is_half_end:
+                latest_month_df = add_predictions_to_df(
+                    latest_month_df,
+                    period_month,
+                )
+                rank = int(
+                    (latest_month_df["예측점수"] >= predicted_score).sum()
+                )
+                rank_label = "예측 순위"
+            else:
+                rank = int(
+                    (latest_month_df["총점"] >= latest["총점"]).sum()
+                )
+                rank_label = "최종 순위"
+
             st.metric(
-                label="전체 순위",
+                label=rank_label,
                 value=f"{rank}위",
-                delta=f"/ {len(all_centers)}개"
+                delta=f"/ {len(all_centers)}개 센터",
+                delta_color="off",
             )
 
-        # 4) 진행 상황
+        # 4) 반기 진행 현황
         with cols[3]:
+            if is_half_end:
+                status_text = "반기 마감"
+                delta_text = "최종 결과 확정"
+            else:
+                status_text = period_info["period_text"]
+                delta_text = (
+                    f"반기 진행률 {period_info['progress_rate'] * 100:.0f}%"
+                )
+
             st.metric(
-                label="진행 상황",
-                value=period_info['period_text'],
-                delta=f"{period_info['progress_rate']*100:.1f}%"
+                label="반기 진행 현황",
+                value=status_text,
+                delta=delta_text,
+                delta_color="off",
             )
+
 
 
 # ============================================================
