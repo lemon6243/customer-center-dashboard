@@ -18,7 +18,7 @@ import pandas as pd
 TARGET_TOTAL = 911
 PERFECT_TOTAL = 1000
 
-# 실제 score_calculator.py 배점과 동일
+# score_calculator.py 배점 기준
 CUMULATIVE_KPIS = {
     "안전점검실점검율": 550,
     "중점고객안전점검율": 100,
@@ -67,15 +67,12 @@ def _contract_score(rate_pct: float) -> float:
 
 
 def _predicted_contract_score(rate_pct: float) -> float:
-    """
-    prediction.py와 동일:
-    현재 사용계약 점수의 110%를 반기말 전망으로 사용, 최대 50점
-    """
+    """사용계약율 반기말 예측 점수"""
     return min(_contract_score(rate_pct) * 1.1, 50.0)
 
 
 def get_center_latest(df: pd.DataFrame, center: str) -> Optional[pd.Series]:
-    """센터 최신월 행 반환"""
+    """특정 센터의 최신월 행 반환"""
     if df is None or df.empty:
         return None
 
@@ -91,7 +88,7 @@ def get_center_latest(df: pd.DataFrame, center: str) -> Optional[pd.Series]:
 
 
 def get_current_kpi_values(df: pd.DataFrame, center: str) -> Dict[str, float]:
-    """센터 최신 KPI 실측값(%) 반환"""
+    """센터 최신 KPI 실측값을 % 기준으로 반환"""
     row = get_center_latest(df, center)
 
     if row is None:
@@ -110,26 +107,25 @@ def get_simulation_defaults(
     period_month: int,
 ) -> Dict[str, float]:
     """
-    슬라이더 기본값 = 현재 페이스 기준 반기말 예상 KPI.
+    현재 페이스 기준 반기말 예상 KPI를 슬라이더 기본값으로 반환.
 
     예:
-    - 7월 안전점검 15% → 기본값 90%
-    - 8월 안전점검 30% → 기본값 90%
-    - 변동형 KPI → 현재값 유지
+    - 하반기 1개월차 안전점검 15% → 반기말 전망 90%
+    - 하반기 2개월차 안전점검 30% → 반기말 전망 90%
     """
     progress_rate = min(max(period_month / 6, 0.01), 1.0)
 
     result = {}
 
-    # 누적형: 반기말 기준으로 환산
+    # 누적형 KPI: 반기 진행률로 반기말 수준 환산
     for kpi in ["안전점검실점검율", "중점고객안전점검율"]:
         current = current_kpis.get(kpi, 0.0)
         result[kpi] = min(current / progress_rate, 100.0)
 
-    # 사용계약: prediction.py와 동일하게 현재 수준을 기준으로 전망
+    # 사용계약율: 현재 수준 기반
     result["사용계약율"] = current_kpis.get("사용계약율", 0.0)
 
-    # 변동형: 현재 월 수준 유지
+    # 변동형 KPI: 현재 월 수준 유지
     for kpi in VARIABLE_KPIS:
         result[kpi] = current_kpis.get(kpi, 0.0)
 
@@ -137,7 +133,7 @@ def get_simulation_defaults(
 
 
 def _calculate_components(kpis: Dict[str, float]) -> Dict[str, float]:
-    """KPI 목표값을 반기말 점수 구성요소로 변환"""
+    """반기말 KPI 목표값을 점수 구성요소로 변환"""
     return {
         "안전점검실점검율": min(
             kpis.get("안전점검실점검율", 0.0) / 100 * 550,
@@ -171,13 +167,10 @@ def calculate_simulated_score(
     adjustment: float = 0.0,
 ) -> SimulationResult:
     """
-    반기말 예측 기준 시뮬레이션.
+    반기말 예측 기준 점수 시뮬레이션.
 
-    baseline_kpis:
-        현재 페이스 기준 반기말 예상 KPI 값
-
-    simulated_kpis:
-        사용자가 슬라이더로 변경한 반기말 목표 KPI 값
+    baseline_kpis: 현재 페이스 기준 반기말 예상 KPI
+    simulated_kpis: 사용자가 조정한 반기말 목표 KPI
     """
     baseline_components = _calculate_components(baseline_kpis)
     simulated_components = _calculate_components(simulated_kpis)
@@ -213,16 +206,16 @@ def find_minimum_combo(
     target: float = TARGET_TOTAL,
 ) -> Optional[Dict[str, float]]:
     """
-    반기말 911점 달성을 위한 KPI 최소 개선 조합.
+    목표점수 도달을 위한 KPI 최소 개선 조합.
 
-    점수 기여가 큰 KPI부터 0.5%p 단위로 증가시키는 방식입니다.
+    점수 기여도가 큰 KPI부터 0.5%p 단위로 개선합니다.
     """
     current = baseline_kpis.copy()
 
     initial = calculate_simulated_score(
-        baseline_kpis,
-        current,
-        adjustment,
+        baseline_kpis=baseline_kpis,
+        simulated_kpis=current,
+        adjustment=adjustment,
     )
 
     if initial.predicted_score >= target:
@@ -230,12 +223,11 @@ def find_minimum_combo(
 
     all_kpis = list(CUMULATIVE_KPIS) + list(VARIABLE_KPIS)
 
-    # 최대 1,200회: 6개 KPI × 최대 200단계
     for _ in range(1200):
         current_result = calculate_simulated_score(
-            baseline_kpis,
-            current,
-            adjustment,
+            baseline_kpis=baseline_kpis,
+            simulated_kpis=current,
+            adjustment=adjustment,
         )
 
         if current_result.predicted_score >= target:
@@ -252,9 +244,9 @@ def find_minimum_combo(
             candidate[kpi] = min(candidate[kpi] + 0.5, 100.0)
 
             candidate_result = calculate_simulated_score(
-                baseline_kpis,
-                candidate,
-                adjustment,
+                baseline_kpis=baseline_kpis,
+                simulated_kpis=candidate,
+                adjustment=adjustment,
             )
 
             gain = (
@@ -272,18 +264,30 @@ def find_minimum_combo(
         current[best_kpi] = min(current[best_kpi] + 0.5, 100.0)
 
     final_result = calculate_simulated_score(
-        baseline_kpis,
-        current,
-        adjustment,
+        baseline_kpis=baseline_kpis,
+        simulated_kpis=current,
+        adjustment=adjustment,
     )
 
-    def get_improvement_actions(
+    return current if final_result.predicted_score >= target else None
+
+
+def get_improvement_actions(
     baseline_kpis: Dict[str, float],
     adjustment: float = 0.0,
     target: float = TARGET_TOTAL,
     top_n: int = 3,
 ) -> list[Dict[str, float]]:
-    """911점 도달을 위한 우선 개선 KPI 목록 반환."""
+    """
+    목표점수 도달을 위한 우선 개선 KPI 목록 반환.
+
+    반환 항목:
+    - KPI
+    - 현재전망
+    - 목표값
+    - 필요상승
+    - 예상기여점수
+    """
     baseline_result = calculate_simulated_score(
         baseline_kpis=baseline_kpis,
         simulated_kpis=baseline_kpis,
@@ -294,9 +298,9 @@ def find_minimum_combo(
         return []
 
     min_combo = find_minimum_combo(
-        baseline_kpis,
-        adjustment,
-        target,
+        baseline_kpis=baseline_kpis,
+        adjustment=adjustment,
+        target=target,
     )
 
     if min_combo is None:
