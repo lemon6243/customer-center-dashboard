@@ -17,17 +17,23 @@ from utils.insights_v2 import (
     get_change_ranking,
     get_half_outlook,
     get_pace_lag_ranking,
-    _safe_latest_month,
-    _is_half_end,
-    _is_half_start,
-    _get_half,
-    _to_month_int,
     TARGET_TOTAL,
     ANNUAL_PASS_TOTAL,
 )
 from components.big_metric_card import score_big_card, count_big_card, big_metric_card
 from components.ranking_list import ranking_list, change_ranking_list
 from components.quick_nav import quick_nav_buttons
+from utils.half_year import (
+    get_latest_month as _safe_latest_month,
+    is_half_start as _is_half_start,
+    is_half_end as _is_half_end,
+    get_half as _get_half,
+    to_month_int as _to_month_int,
+    filter_by_month,
+    get_comparison_data,
+    month_label,
+)
+
 
 
 QUICK_NAV_ITEMS = [
@@ -38,9 +44,6 @@ QUICK_NAV_ITEMS = [
     {"icon": "🔬", "label": "심화 분석",  "page_key": "🔬 심화 분석",  "desc": "분석 + 원본"},
 ]
 
-def _is_half_start(month) -> bool:
-    """1월 또는 7월이면 True"""
-    return pd.Timestamp(month).month in (1, 7)
 
 
 def show(df: pd.DataFrame, device_type: str = "desktop"):
@@ -48,34 +51,34 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
         st.warning("⚠️ 표시할 데이터가 없습니다. 사이드바에서 데이터를 확인해주세요.")
         return
 
-    df_latest, df_prev, latest_month, prev_month = _get_latest_and_prev(df)
-    if df_latest is None or df_latest.empty:
+    df_last_year = st.session_state.get("df_last_year", None)
+
+    # 최신월·비교월을 공통 반기 정책으로 계산
+    latest_month_dt = _safe_latest_month(df)
+    
+    if latest_month_dt is None:
         st.warning("⚠️ 최신 월 데이터를 추출할 수 없습니다.")
         return
-
-    df_last_year = st.session_state.get('df_last_year', None)
-    # 반기 시작월(1월/7월)은 직전 반기가 아니라 작년 동월과 비교
-    # 최신 평가월 확인
-    latest_month_dt = None
     
-    if '평가월' in df.columns and not df.empty:
-        month_series = pd.to_datetime(df['평가월'], errors='coerce').dropna()
+    df_latest = filter_by_month(df, latest_month_dt)
+    
+    if df_latest.empty:
+        st.warning("⚠️ 최신 월 데이터를 추출할 수 없습니다.")
+        return
+    
+    df_prev, compare_label, compare_month_dt = get_comparison_data(
+        df=df,
+        latest_month=latest_month_dt,
+        df_last_year=df_last_year,
+    )
+    
+    latest_month = month_label(latest_month_dt)
+    prev_month = month_label(compare_month_dt)
+    
+    is_half_start_month = _is_half_start(latest_month_dt)
+    is_final_month = _is_half_end(latest_month_dt)
+    half_label = _get_half(latest_month_dt)
 
-        if not month_series.empty:
-            latest_month_dt = month_series.max()
-
-    is_half_start_month = _is_half_start(latest_month_dt) if latest_month_dt is not None else False
-
-    if is_half_start_month and df_last_year is not None and not df_last_year.empty:
-        target_month_num = latest_month_dt.month
-        ly_months = pd.to_datetime(df_last_year["평가월"], errors="coerce")
-        df_prev = df_last_year[ly_months.dt.month == target_month_num].copy()
-        prev_month = f"{latest_month_dt.year - 1}년 {target_month_num:02d}월"
-
-
-    latest_month_dt = _safe_latest_month(df)
-    is_final_month = _is_half_end(latest_month_dt) if latest_month_dt is not None else False
-    half_label = _get_half(_to_month_int(latest_month_dt)) if latest_month_dt is not None else ""
 
     _render_period_header(df, latest_month, is_final_month, half_label)
 
@@ -90,7 +93,7 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     if prev_avg is not None and pd.notna(prev_avg):
         diff = avg_score - prev_avg
-        compare_word = "전년 동월" if is_half_start_month else "전월"
+        compare_word = compare_label or ("전년 동월" if is_half_start_month else "전월")
         delta_avg = f"{'+' if diff >= 0 else ''}{diff:,.1f} vs {compare_word}"
     else:
         delta_avg = None
