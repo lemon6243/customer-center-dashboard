@@ -243,35 +243,34 @@ def _render_simulation_section(
     )
     
     # 민원대응·주의경고·가점은 KPI 슬라이더가 아닌 고정 조정항목
-    adjustment = (
+        adjustment = (
         float(latest.get("민원대응적정성", 0) or 0)
         + float(latest.get("주의경고", 0) or 0)
         + float(latest.get("가점", 0) or 0)
     )
-    
-    baseline_result = calculate_simulated_score(
-        baseline_kpis,
-        baseline_kpis,
-        adjustment,
-    )
-    
-    current_score = baseline_result.predicted_score
 
-        if current_score >= TARGET_TOTAL:
-            st.success(
-                f"✅ **{center_name}** 센터는 이번 반기 **{current_score:.1f}점**으로 "
-                f"911점을 달성했습니다. 시뮬레이션은 다음 반기(다음 달) 시작 후 활성화됩니다."
-            )
-        else:
-            gap = TARGET_TOTAL - current_score
-            annual_needed = 2 * TARGET_TOTAL - current_score
-            st.warning(
-                f"⚠️ **{center_name}** 센터는 이번 반기 **{current_score:.1f}점**으로 "
-                f"911점에 **{gap:.1f}점** 미달했습니다.\n\n"
-                f"연간 pass(평균 911점) 위해 다음 반기에 **{annual_needed:.0f}점** 필요합니다. "
-                f"시뮬레이션은 다음 반기 시작 후 활성화됩니다."
-            )
-        return
+    baseline_result = calculate_simulated_score(
+        baseline_kpis=baseline_kpis,
+        simulated_kpis=baseline_kpis,
+        adjustment=adjustment,
+    )
+
+    current_score = baseline_result.predicted_score
+    gap = TARGET_TOTAL - current_score
+
+    if current_score >= TARGET_TOTAL:
+        st.success(
+            f"✅ **{center_name}** 센터는 현재 페이스 기준 "
+            f"반기말 예상 점수가 **{current_score:.1f}점**입니다. "
+            f"911점 달성권입니다."
+        )
+    else:
+        st.warning(
+            f"⚠️ **{center_name}** 센터의 현재 페이스 기준 반기말 예상 점수는 "
+            f"**{current_score:.1f}점**입니다. "
+            f"911점까지 **{gap:.1f}점** 보완이 필요합니다."
+        )
+
 
     st.subheader("🎯 911점 달성 시뮬레이션")
     st.caption(
