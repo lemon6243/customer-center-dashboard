@@ -143,7 +143,16 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
         n_caution = int((outlook["안전도"] == "주의").sum()) if not outlook.empty else 0
         n_risk = int((outlook["안전도"] == "위험").sum()) if not outlook.empty else 0
         second_label, second_count, second_color = "911점 달성 안전 페이스", n_safe, Colors.SUCCESS
-        third_label, third_count, third_color = "페이스 주의·위험 센터", n_caution + n_risk, (Colors.WARNING if n_caution else Colors.DANGER if n_risk else Colors.SUCCESS)
+        third_label = "페이스 주의·위험 센터"
+        third_count = n_caution + n_risk
+        
+        if n_risk > 0:
+            third_color = Colors.DANGER
+        elif n_caution > 0:
+            third_color = Colors.WARNING
+        else:
+            third_color = Colors.SUCCESS
+
 
     with cols[1 % n_cols]:
         count_big_card(label=second_label, count=second_count, total=n_total, icon="🏆", color=second_color, suffix="개")
@@ -183,21 +192,60 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     ranking = get_ranking_data(df_latest, n=5, mode="score")
     top_df = ranking.get("top", pd.DataFrame())
-    bottom_df = ranking.get("bottom", pd.DataFrame())
-
-    top_title = "🏆 911점 달성 Top 5" if is_final_month else "🥇 Top 5 우수 센터"
-    bottom_title = "⚠️ 911점 미달 센터" if is_final_month else "⚠️ 911점 미달 센터 (관리 필요)"
-
-    if device_type == "mobile":
-        # Top: 상위 5개
-        ranking_list(
-            top_df, title=top_title, value_col="총점",
-            icon="🏆" if is_final_month else "🥇", use_score_color=True,
+    
+    # 진행 중인 반기에는 실제 누적점수 미달이 아닌
+    # '반기 마감 예상점수' 기준의 페이스 위험 센터를 사용
+    pace_lag_df = pd.DataFrame()
+    
+    if not is_final_month:
+        pace_lag_df = get_pace_lag_ranking(
+            df,
+            n=5,
+            df_last_year=df_last_year,
         )
+    
+    top_title = "🏆 911점 달성 Top 5" if is_final_month else "🥇 Top 5 우수 센터"
+    
+    if device_type == "mobile":
+        ranking_list(
+            top_df,
+            title=top_title,
+            value_col="총점",
+            icon="🏆" if is_final_month else "🥇",
+    
+            # 진행 중인 반기에는 500점대가 빨갛게 표시되지 않게 함
+            use_score_color=is_final_month,
+        )
+    
         st.markdown("")
-        # Bottom: 911점 미달만
-        _render_below_target_list(bottom_df, is_final_month, half_label)
+    
+        if is_final_month:
+            bottom_df = ranking.get("bottom", pd.DataFrame())
+            _render_below_target_list(bottom_df, is_final_month, half_label)
+        else:
+            _render_pace_lag_list(pace_lag_df)
+    
     else:
+        col1, col2 = st.columns(2)
+    
+        with col1:
+            ranking_list(
+                top_df,
+                title=top_title.replace("🏆 ", "").replace("🥇 ", ""),
+                value_col="총점",
+                icon="🏆" if is_final_month else "🥇",
+    
+                # 진행 중인 반기에는 절대점수 색상 판정 비활성화
+                use_score_color=is_final_month,
+            )
+    
+        with col2:
+            if is_final_month:
+                bottom_df = ranking.get("bottom", pd.DataFrame())
+                _render_below_target_list(bottom_df, is_final_month, half_label)
+            else:
+                _render_pace_lag_list(pace_lag_df)
+
         col1, col2 = st.columns(2)
         with col1:
             ranking_list(
@@ -211,12 +259,20 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
     st.markdown("")
 
     if df_prev is not None and not df_prev.empty:
-        if is_final_month:
+        if is_half_start_month:
+            st.markdown(f"##### 📊 전년 동월 대비 동향 (vs {prev_month})")
+        elif is_final_month:
             st.markdown(f"##### 📊 최종 월 대비 동향 (vs {prev_month})")
         else:
             st.markdown(f"##### 📊 전월 대비 동향 (vs {prev_month})")
 
-        change_rank = get_change_ranking(df, n=5)
+
+        change_rank = get_change_ranking(
+            df,
+            n=5,
+            df_last_year=df_last_year,
+        )
+
         rising_df = change_rank.get("rising", pd.DataFrame())
         falling_df = change_rank.get("falling", pd.DataFrame())
 
@@ -258,7 +314,14 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
     else:
         col_a, col_b = st.columns(2)
         with col_a:
-            _render_distribution_chart(df_latest, is_final_month, half_label)
+            _render_distribution_chart(
+                df_latest,
+                is_final_month,
+                half_label,
+                df,
+                df_last_year,
+            )
+
         with col_b:
             _render_trend_chart(df)
 
