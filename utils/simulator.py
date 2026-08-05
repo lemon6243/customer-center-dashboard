@@ -1,222 +1,280 @@
 """
-시뮬레이션 로직 v1.0
-- 변동형 KPI 조정 시 예상 총점 계산
-- 누적형 KPI 잔여월 진척도 시뮬레이션
-- 911점 달성 최소 조합 탐색
+반기말 예측 기반 KPI 시뮬레이터
+
+- 성과분석 / 홈 / 위험관리의 prediction.py 예측 기준과 동일
+- 누적형 KPI: 현재 진행률을 반기말 기준으로 환산
+- 변동형 KPI: 현재 수준을 반기말 예상값으로 사용
+- 민원대응·주의경고·가점: 조정항목으로 고정
 """
+
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
+
 import pandas as pd
-import numpy as np
 
-# ============================================================
-# 배점 상수 (총 1000점)
-# ============================================================
-# 누적형 KPI (반기 누적, 하락 불가)
-SCORE_SAFETY_INSPECTION = 550      # 안전점검실점검율
-SCORE_KEY_CUSTOMER = 100           # 중점고객안전점검율
-SCORE_CONTRACT_USAGE = 50          # 사용계약율
 
-# 변동형 KPI (월별 변동, 총 300점)
-SCORE_CONSULT_RESPONSE = 75        # 상담응대율
-SCORE_CONSULT_CONTRIB = 75         # 상담기여도
-SCORE_SATISFACTION = 75            # 고객서비스만족도
-SCORE_COMPLAINT = 75               # 민원대응적정성
+TARGET_TOTAL = 911
+PERFECT_TOTAL = 1000
 
-TARGET_TOTAL = 911                 # 반기 합격 기준
-
-# KPI 컬럼명 매핑
+# 실제 score_calculator.py 배점과 동일
 CUMULATIVE_KPIS = {
-    '안전점검실점검율': SCORE_SAFETY_INSPECTION,
-    '중점고객안전점검율': SCORE_KEY_CUSTOMER,
-    '사용계약율': SCORE_CONTRACT_USAGE,
+    "안전점검실점검율": 550,
+    "중점고객안전점검율": 100,
+    "사용계약율": 50,
 }
 
 VARIABLE_KPIS = {
-    '상담응대율': SCORE_CONSULT_RESPONSE,
-    '상담기여도': SCORE_CONSULT_CONTRIB,
-    '고객서비스만족도': SCORE_SATISFACTION,
-    '민원대응적정성': SCORE_COMPLAINT,
+    "상담응대율": 100,
+    "상담기여도": 100,
+    "고객서비스만족도": 100,
 }
 
 
-# ============================================================
-# 데이터 클래스
-# ============================================================
 @dataclass
 class SimulationResult:
-    """시뮬레이션 결과"""
-    current_score: float        # 현재 점수
-    predicted_score: float      # 시뮬레이션 예상 점수
-    delta: float                # 변화량
-    target_gap: float           # 911 대비 (양수=초과달성, 음수=부족)
-    achieved: bool              # 911 달성 여부
-    breakdown: Dict[str, float] # KPI별 기여 점수
+    current_score: float
+    predicted_score: float
+    delta: float
+    target_gap: float
+    achieved: bool
+    breakdown: Dict[str, float]
 
 
-# ============================================================
-# 헬퍼 함수
-# ============================================================
 def _to_pct(value) -> float:
-    """% 값을 0~100 스케일로 정규화"""
+    """0~1 또는 0~100 값을 0~100으로 통일"""
     if value is None or pd.isna(value):
         return 0.0
-    v = float(value)
-    if 0 <= v <= 1.5:  # 0.85 같은 비율
-        v = v * 100
-    return max(0.0, min(100.0, v))
+
+    value = float(value)
+
+    if 0 <= value <= 1.5:
+        value *= 100
+
+    return max(0.0, min(100.0, value))
+
+
+def _contract_score(rate_pct: float) -> float:
+    """사용계약율 등급제 점수"""
+    if rate_pct >= 90:
+        return 50.0
+    if rate_pct >= 80:
+        return 45.0
+    if rate_pct >= 70:
+        return 40.0
+    return 35.0
+
+
+def _predicted_contract_score(rate_pct: float) -> float:
+    """
+    prediction.py와 동일:
+    현재 사용계약 점수의 110%를 반기말 전망으로 사용, 최대 50점
+    """
+    return min(_contract_score(rate_pct) * 1.1, 50.0)
 
 
 def get_center_latest(df: pd.DataFrame, center: str) -> Optional[pd.Series]:
-    """센터의 최신월 데이터 조회"""
+    """센터 최신월 행 반환"""
     if df is None or df.empty:
         return None
-    df_c = df[df['센터명'] == center].dropna(subset=['평가월'])
-    if df_c.empty:
+
+    result = df[df["센터명"] == center].copy()
+
+    if result.empty:
         return None
-    df_c = df_c.sort_values('평가월')
-    return df_c.iloc[-1]
+
+    result["_month_dt"] = pd.to_datetime(result["평가월"], errors="coerce")
+    result = result.dropna(subset=["_month_dt"]).sort_values("_month_dt")
+
+    return None if result.empty else result.iloc[-1]
 
 
 def get_current_kpi_values(df: pd.DataFrame, center: str) -> Dict[str, float]:
-    """센터의 현재 KPI 값 조회 (%)"""
+    """센터 최신 KPI 실측값(%) 반환"""
     row = get_center_latest(df, center)
+
     if row is None:
         return {}
+
     result = {}
-    for col in list(CUMULATIVE_KPIS.keys()) + list(VARIABLE_KPIS.keys()):
-        if col in row.index:
-            result[col] = _to_pct(row[col])
-        else:
-            result[col] = 0.0
+
+    for kpi in list(CUMULATIVE_KPIS) + list(VARIABLE_KPIS):
+        result[kpi] = _to_pct(row.get(kpi, 0))
+
     return result
 
 
-# ============================================================
-# 점수 계산 (비례 추정 방식)
-# ============================================================
-def calculate_simulated_score(
+def get_simulation_defaults(
     current_kpis: Dict[str, float],
+    period_month: int,
+) -> Dict[str, float]:
+    """
+    슬라이더 기본값 = 현재 페이스 기준 반기말 예상 KPI.
+
+    예:
+    - 7월 안전점검 15% → 기본값 90%
+    - 8월 안전점검 30% → 기본값 90%
+    - 변동형 KPI → 현재값 유지
+    """
+    progress_rate = min(max(period_month / 6, 0.01), 1.0)
+
+    result = {}
+
+    # 누적형: 반기말 기준으로 환산
+    for kpi in ["안전점검실점검율", "중점고객안전점검율"]:
+        current = current_kpis.get(kpi, 0.0)
+        result[kpi] = min(current / progress_rate, 100.0)
+
+    # 사용계약: prediction.py와 동일하게 현재 수준을 기준으로 전망
+    result["사용계약율"] = current_kpis.get("사용계약율", 0.0)
+
+    # 변동형: 현재 월 수준 유지
+    for kpi in VARIABLE_KPIS:
+        result[kpi] = current_kpis.get(kpi, 0.0)
+
+    return result
+
+
+def _calculate_components(kpis: Dict[str, float]) -> Dict[str, float]:
+    """KPI 목표값을 반기말 점수 구성요소로 변환"""
+    return {
+        "안전점검실점검율": min(
+            kpis.get("안전점검실점검율", 0.0) / 100 * 550,
+            550,
+        ),
+        "중점고객안전점검율": min(
+            kpis.get("중점고객안전점검율", 0.0) / 100 * 100,
+            100,
+        ),
+        "사용계약율": _predicted_contract_score(
+            kpis.get("사용계약율", 0.0)
+        ),
+        "상담응대율": min(
+            kpis.get("상담응대율", 0.0) / 100 * 100,
+            100,
+        ),
+        "상담기여도": min(
+            kpis.get("상담기여도", 0.0) / 100 * 100,
+            100,
+        ),
+        "고객서비스만족도": min(
+            kpis.get("고객서비스만족도", 0.0) / 100 * 100,
+            100,
+        ),
+    }
+
+
+def calculate_simulated_score(
+    baseline_kpis: Dict[str, float],
     simulated_kpis: Dict[str, float],
-    current_score: float,
-    penalty: float = 0.0,
-    bonus: float = 0.0,
+    adjustment: float = 0.0,
 ) -> SimulationResult:
     """
-    시뮬레이션 점수 계산 (비례 추정 방식)
-    
-    누적형 KPI: 잔여 진척도 × 배점 (현재 점수에 가산)
-    변동형 KPI: (목표값 / 100) × 배점
-    
-    Parameters
-    ----------
-    current_kpis : Dict
-        현재 KPI 값 (%) - {'안전점검실점검율': 82.5, ...}
-    simulated_kpis : Dict
-        시뮬레이션 KPI 값 (%) - 누적형은 "목표 도달치", 변동형은 "월 평균 목표값"
-    current_score : float
-        현재 총점
-    penalty, bonus : float
-        주의경고, 가점
+    반기말 예측 기준 시뮬레이션.
+
+    baseline_kpis:
+        현재 페이스 기준 반기말 예상 KPI 값
+
+    simulated_kpis:
+        사용자가 슬라이더로 변경한 반기말 목표 KPI 값
     """
-    breakdown = {}
-    
-    # 누적형 KPI 기여도 변화 계산
-    # (목표값 - 현재값) / 100 × 배점 = 추가로 얻는 점수
-    cumul_delta = 0.0
-    for kpi, score_max in CUMULATIVE_KPIS.items():
-        cur = current_kpis.get(kpi, 0.0)
-        sim = simulated_kpis.get(kpi, cur)
-        delta_pct = max(0.0, sim - cur)  # 누적형은 하락 불가
-        added = (delta_pct / 100.0) * score_max
-        cumul_delta += added
-        breakdown[kpi] = added
-    
-    # 변동형 KPI는 "월 평균 목표값" 기준으로 재계산
-    # 현재 변동형 기여도를 빼고, 시뮬값 기여도를 더함
-    var_current_total = 0.0
-    var_simulated_total = 0.0
-    for kpi, score_max in VARIABLE_KPIS.items():
-        cur = current_kpis.get(kpi, 0.0)
-        sim = simulated_kpis.get(kpi, cur)
-        cur_contrib = (cur / 100.0) * score_max
-        sim_contrib = (sim / 100.0) * score_max
-        var_current_total += cur_contrib
-        var_simulated_total += sim_contrib
-        breakdown[kpi] = sim_contrib - cur_contrib
-    
-    var_delta = var_simulated_total - var_current_total
-    
-    predicted = current_score + cumul_delta + var_delta
-    delta = predicted - current_score
-    target_gap = predicted - TARGET_TOTAL
-    
+    baseline_components = _calculate_components(baseline_kpis)
+    simulated_components = _calculate_components(simulated_kpis)
+
+    baseline_score = min(
+        sum(baseline_components.values()) + adjustment,
+        PERFECT_TOTAL,
+    )
+
+    predicted_score = min(
+        sum(simulated_components.values()) + adjustment,
+        PERFECT_TOTAL,
+    )
+
+    breakdown = {
+        kpi: simulated_components[kpi] - baseline_components[kpi]
+        for kpi in simulated_components
+    }
+
     return SimulationResult(
-        current_score=current_score,
-        predicted_score=predicted,
-        delta=delta,
-        target_gap=target_gap,
-        achieved=(predicted >= TARGET_TOTAL),
+        current_score=baseline_score,
+        predicted_score=predicted_score,
+        delta=predicted_score - baseline_score,
+        target_gap=predicted_score - TARGET_TOTAL,
+        achieved=predicted_score >= TARGET_TOTAL,
         breakdown=breakdown,
     )
 
 
-# ============================================================
-# 최소 조합 탐색
-# ============================================================
 def find_minimum_combo(
-    current_kpis: Dict[str, float],
-    current_score: float,
+    baseline_kpis: Dict[str, float],
+    adjustment: float = 0.0,
     target: float = TARGET_TOTAL,
 ) -> Optional[Dict[str, float]]:
     """
-    911점 달성 최소 조합 탐색
-    전략: 효율(점수/노력) 높은 순으로 KPI를 끌어올림
-    - 노력 = 끌어올려야 할 %p
-    - 효율 = 배점 / 100 (즉, 1%p당 얻는 점수)
-    
-    Returns
-    -------
-    Dict | None : 목표 KPI 값들, 달성 불가능 시 None
+    반기말 911점 달성을 위한 KPI 최소 개선 조합.
+
+    점수 기여가 큰 KPI부터 0.5%p 단위로 증가시키는 방식입니다.
     """
-    gap = target - current_score
-    if gap <= 0:
-        return current_kpis.copy()  # 이미 달성
-    
-    # 효율 = 배점 / 1%p (모든 KPI 1%p당 배점/100점)
-    # 따라서 배점이 큰 KPI(=안전점검 550점)부터 끌어올리는 게 효율적
-    kpi_list = []
-    for kpi, score_max in CUMULATIVE_KPIS.items():
-        cur = current_kpis.get(kpi, 0.0)
-        headroom = 100.0 - cur  # 끌어올릴 수 있는 여유
-        if headroom > 0.1:
-            kpi_list.append((kpi, score_max, cur, headroom, 'cumul'))
-    for kpi, score_max in VARIABLE_KPIS.items():
-        cur = current_kpis.get(kpi, 0.0)
-        headroom = 100.0 - cur
-        if headroom > 0.1:
-            kpi_list.append((kpi, score_max, cur, headroom, 'var'))
-    
-    # 배점 큰 순으로 정렬 (= 효율 높은 순)
-    kpi_list.sort(key=lambda x: x[1], reverse=True)
-    
-    target_kpis = current_kpis.copy()
-    remaining_gap = gap
-    
-    for kpi, score_max, cur, headroom, kind in kpi_list:
-        if remaining_gap <= 0:
+    current = baseline_kpis.copy()
+
+    initial = calculate_simulated_score(
+        baseline_kpis,
+        current,
+        adjustment,
+    )
+
+    if initial.predicted_score >= target:
+        return current
+
+    all_kpis = list(CUMULATIVE_KPIS) + list(VARIABLE_KPIS)
+
+    # 최대 1,200회: 6개 KPI × 최대 200단계
+    for _ in range(1200):
+        current_result = calculate_simulated_score(
+            baseline_kpis,
+            current,
+            adjustment,
+        )
+
+        if current_result.predicted_score >= target:
+            return current
+
+        best_kpi = None
+        best_gain = 0.0
+
+        for kpi in all_kpis:
+            if current.get(kpi, 0.0) >= 100:
+                continue
+
+            candidate = current.copy()
+            candidate[kpi] = min(candidate[kpi] + 0.5, 100.0)
+
+            candidate_result = calculate_simulated_score(
+                baseline_kpis,
+                candidate,
+                adjustment,
+            )
+
+            gain = (
+                candidate_result.predicted_score
+                - current_result.predicted_score
+            )
+
+            if gain > best_gain:
+                best_gain = gain
+                best_kpi = kpi
+
+        if best_kpi is None or best_gain <= 0:
             break
-        # 1%p당 얻는 점수
-        score_per_pct = score_max / 100.0
-        # 필요한 %p 증가량
-        needed_pct = remaining_gap / score_per_pct
-        # 실제 가능한 증가량
-        actual_pct = min(needed_pct, headroom)
-        target_kpis[kpi] = cur + actual_pct
-        remaining_gap -= actual_pct * score_per_pct
-    
-    if remaining_gap > 0.5:
-        return None  # 모든 KPI 100%로도 달성 불가
-    
-    return target_kpis
+
+        current[best_kpi] = min(current[best_kpi] + 0.5, 100.0)
+
+    final_result = calculate_simulated_score(
+        baseline_kpis,
+        current,
+        adjustment,
+    )
+
+    return current if final_result.predicted_score >= target else None
