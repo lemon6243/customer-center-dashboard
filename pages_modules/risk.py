@@ -132,6 +132,7 @@ def _render_pace_risk(
                 period_month=period_info["period_month"],
             )
 
+
     else:
         st.success("🎉 예측 기준 895점 미만 위험 센터가 없습니다.")
 
