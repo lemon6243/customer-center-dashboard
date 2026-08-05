@@ -63,50 +63,71 @@ def big_metric_card(
     st.markdown(html, unsafe_allow_html=True)
 
 
-def score_big_card(label: str, score: float, target: float = 911, icon: str = "🎯", delta: str = None):
+def score_big_card(
+    label: str,
+    score: float,
+    target: float = 911,
+    icon: str = "🎯",
+    delta: str = None,
+    color: str = None,
+    status_text: str = None,
+    show_target: bool = True,
+):
     """
-    점수 전용 큰 카드 (목표 대비 색상 자동 적용)
-    
-    Args:
-        label: 카드 라벨
-        score: 현재 점수
-        target: 목표 점수 (기본 911)
-        icon: 아이콘
-        delta: 변화량 텍스트
+    점수 전용 큰 카드.
+    - color: 페이스 판정 색상을 강제로 지정할 때 사용
+    - status_text: '반기 전망 940점 · 안전 페이스' 같은 보조 문구
+    - show_target=False: 반기 진행 중 현재 점수를 911점과 직접 비교하지 않음
     """
-    color = get_score_color(score)
-    pct = (score / target * 100) if target > 0 else 0
+    color = color or get_score_color(score)
 
     delta_html = ""
     if delta:
-        is_positive = delta.strip().startswith("+")
+        is_positive = delta.strip().startswith("+") or "▲" in delta
         d_color = Colors.SUCCESS if is_positive else Colors.DANGER
-        delta_html = f'<div style="color:{d_color}; font-size:14px; font-weight:600; margin-top:4px;">{delta}</div>'
+        delta_html = (
+            f'<div style="color:{d_color};font-size:14px;font-weight:600;margin-top:4px;">'
+            f'{delta}</div>'
+        )
+
+    target_html = ""
+    if show_target:
+        pct = (score / target * 100) if target > 0 else 0
+        target_html = (
+            f'<span style="font-size:14px;color:{Colors.TEXT_SUB};font-weight:400;">'
+            f'/ {target:,.0f} ({pct:.1f}%)</span>'
+        )
+
+    status_html = ""
+    if status_text:
+        status_html = (
+            f'<div style="color:{Colors.TEXT_SUB};font-size:12px;margin-top:5px;">'
+            f'{status_text}</div>'
+        )
 
     html = f"""
     <div style="
-        background: {Colors.BG_CARD};
-        border: 1px solid {Colors.BORDER};
-        border-left: 4px solid {color};
-        border-radius: 12px;
-        padding: 20px 24px;
-        height: 100%;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        background:{Colors.BG_CARD};
+        border:1px solid {Colors.BORDER};
+        border-left:4px solid {color};
+        border-radius:12px;
+        padding:20px 24px;
+        height:100%;
+        box-shadow:0 1px 3px rgba(0,0,0,0.05);
     ">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <span style="font-size:20px;">{icon}</span>
-            <span style="color:{Colors.TEXT_SUB}; font-size:13px; font-weight:500;">{label}</span>
+            <span style="color:{Colors.TEXT_SUB};font-size:13px;font-weight:500;">{label}</span>
         </div>
-        <div style="color:{color}; font-size:32px; font-weight:700; line-height:1.2;">
-            {score:,.1f}
-            <span style="font-size:14px; color:{Colors.TEXT_SUB}; font-weight:400;">
-                / {target:,.0f} ({pct:.1f}%)
-            </span>
+        <div style="color:{color};font-size:32px;font-weight:700;line-height:1.2;">
+            {score:,.1f}점 {target_html}
         </div>
         {delta_html}
+        {status_html}
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
+
 
 
 def count_big_card(label: str, count: int, total: int = None, icon: str = "📍", color: str = None, suffix: str = "개"):
