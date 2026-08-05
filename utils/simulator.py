@@ -283,27 +283,13 @@ def find_minimum_combo(
     target: float = TARGET_TOTAL,
     top_n: int = 3,
 ) -> list[Dict[str, float]]:
-    """
-    911점 달성을 위해 우선 개선할 KPI 목록 반환.
-
-    반환 예:
-    [
-        {
-            "KPI": "안전점검실점검율",
-            "현재전망": 82.0,
-            "목표값": 90.0,
-            "필요상승": 8.0,
-            "예상기여점수": 44.0,
-        }
-    ]
-    """
+    """911점 도달을 위한 우선 개선 KPI 목록 반환."""
     baseline_result = calculate_simulated_score(
         baseline_kpis=baseline_kpis,
         simulated_kpis=baseline_kpis,
         adjustment=adjustment,
     )
 
-    # 이미 목표 달성권이면 개선 제안 없음
     if baseline_result.predicted_score >= target:
         return []
 
@@ -313,7 +299,6 @@ def find_minimum_combo(
         target,
     )
 
-    # 모든 KPI를 올려도 목표 달성 불가
     if min_combo is None:
         return []
 
@@ -327,17 +312,19 @@ def find_minimum_combo(
         if increase <= 0.05:
             continue
 
-        # 해당 KPI만 목표값까지 조정했을 때의 기여 점수
-        one_kpi_changed = baseline_kpis.copy()
-        one_kpi_changed[kpi] = goal
+        candidate_kpis = baseline_kpis.copy()
+        candidate_kpis[kpi] = goal
 
-        changed_result = calculate_simulated_score(
+        candidate_result = calculate_simulated_score(
             baseline_kpis=baseline_kpis,
-            simulated_kpis=one_kpi_changed,
+            simulated_kpis=candidate_kpis,
             adjustment=adjustment,
         )
 
-        contribution = changed_result.predicted_score - baseline_result.predicted_score
+        contribution = (
+            candidate_result.predicted_score
+            - baseline_result.predicted_score
+        )
 
         actions.append({
             "KPI": kpi,
@@ -349,9 +336,6 @@ def find_minimum_combo(
 
     return sorted(
         actions,
-        key=lambda x: x["예상기여점수"],
+        key=lambda item: item["예상기여점수"],
         reverse=True,
     )[:top_n]
-
-
-    return current if final_result.predicted_score >= target else None
