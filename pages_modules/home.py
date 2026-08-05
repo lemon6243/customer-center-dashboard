@@ -19,6 +19,7 @@ from utils.insights_v2 import (
     get_pace_lag_ranking,
     _safe_latest_month,
     _is_half_end,
+    _is_half_start,
     _get_half,
     _to_month_int,
     TARGET_TOTAL,
@@ -49,6 +50,15 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
         return
 
     df_last_year = st.session_state.get('df_last_year', None)
+    # 반기 시작월(1월/7월)은 직전 반기가 아니라 작년 동월과 비교
+    is_half_start_month = _is_half_start(latest_month_dt) if latest_month_dt is not None else False
+
+    if is_half_start_month and df_last_year is not None and not df_last_year.empty:
+        target_month_num = latest_month_dt.month
+        ly_months = pd.to_datetime(df_last_year["평가월"], errors="coerce")
+        df_prev = df_last_year[ly_months.dt.month == target_month_num].copy()
+        prev_month = f"{latest_month_dt.year - 1}년 {target_month_num:02d}월"
+
 
     latest_month_dt = _safe_latest_month(df)
     is_final_month = _is_half_end(latest_month_dt) if latest_month_dt is not None else False
@@ -56,77 +66,90 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     _render_period_header(df, latest_month, is_final_month, half_label)
 
-    # ==================== 1. 핵심 KPI 카드 ====================
+     # ==================== 1. 핵심 KPI 카드 ====================
     st.markdown("### 📊 핵심 지표")
 
     n_cols = 2 if device_type == "mobile" else 4
     cols = st.columns(n_cols)
 
-    avg_score = df_latest['총점'].mean() if '총점' in df_latest.columns else 0
-    prev_avg = df_prev['총점'].mean() if df_prev is not None and '총점' in df_prev.columns else None
-    delta_avg = None
+    avg_score = df_latest["총점"].mean() if "총점" in df_latest.columns else 0
+    prev_avg = df_prev["총점"].mean() if df_prev is not None and not df_prev.empty else None
+
     if prev_avg is not None and pd.notna(prev_avg):
         diff = avg_score - prev_avg
-        delta_avg = f"{'+' if diff >= 0 else ''}{diff:,.1f} vs 전월"
+        compare_word = "전년 동월" if is_half_start_month else "전월"
+        delta_avg = f"{'+' if diff >= 0 else ''}{diff:,.1f} vs {compare_word}"
+    else:
+        delta_avg = None
+
+    # 진행 중에는 전체 평균도 전망 점수로 안전도를 판정
+    outlook = get_half_outlook(df, df_last_year=df_last_year)
+    avg_forecast = outlook["현실전망"].mean() if (not is_final_month and not outlook.empty) else None
+
+    if is_final_month:
+        pace_color = Colors.SUCCESS if avg_score >= TARGET_TOTAL else (
+            Colors.WARNING if avg_score >= 895 else Colors.DANGER
+        )
+        score_label = f"{half_label} 최종 평균"
+        score_status = "반기 최종 확정"
+        show_target = True
+    else:
+        pace_color = Colors.SUCCESS if avg_forecast is not None and avg_forecast >= TARGET_TOTAL else (
+            Colors.WARNING if avg_forecast is not None and avg_forecast >= 895 else Colors.DANGER
+        )
+        elapsed = latest_month_dt.month if latest_month_dt.month <= 6 else latest_month_dt.month - 6
+        score_label = f"{half_label} {elapsed}개월차 평균"
+        score_status = (
+            f"반기 전망 {avg_forecast:.1f}점 · "
+            f"{'안전 페이스' if avg_forecast >= TARGET_TOTAL else ('주의 페이스' if avg_forecast >= 895 else '위험 페이스')}"
+            if avg_forecast is not None else "반기 전망 산출 중"
+        )
+        # 진행 중 532점/911점 같은 오해를 막기 위해 현재점수의 목표 대비 퍼센트는 숨김
+        show_target = False
 
     with cols[0]:
         score_big_card(
-            label=f"{half_label} 최종 평균" if is_final_month else "전체 평균 점수",
+            label=score_label,
             score=avg_score,
-            target=ScoreThresholds.TARGET,
+            target=TARGET_TOTAL,
             icon="🏁" if is_final_month else "🎯",
             delta=delta_avg,
+            color=pace_color,
+            status_text=score_status,
+            show_target=show_target,
         )
 
     n_total = len(df_latest)
-    # 911점 달성 센터
-    n_achieved = int((df_latest['총점'] >= TARGET_TOTAL).sum()) if '총점' in df_latest.columns else 0
+    if is_final_month:
+        n_achieved = int((df_latest["총점"] >= TARGET_TOTAL).sum())
+        n_below = n_total - n_achieved
+        second_label, second_count, second_color = f"{half_label} 911점 달성", n_achieved, Colors.SUCCESS
+        third_label, third_count, third_color = f"{half_label} 911점 미달", n_below, (Colors.WARNING if n_below else Colors.SUCCESS)
+    else:
+        n_safe = int((outlook["안전도"] == "안전").sum()) if not outlook.empty else 0
+        n_caution = int((outlook["안전도"] == "주의").sum()) if not outlook.empty else 0
+        n_risk = int((outlook["안전도"] == "위험").sum()) if not outlook.empty else 0
+        second_label, second_count, second_color = "911점 달성 안전 페이스", n_safe, Colors.SUCCESS
+        third_label, third_count, third_color = "페이스 주의·위험 센터", n_caution + n_risk, (Colors.WARNING if n_caution else Colors.DANGER if n_risk else Colors.SUCCESS)
 
     with cols[1 % n_cols]:
-        count_big_card(
-            label=f"{half_label} 911점 달성" if is_final_month else "911점 달성 센터",
-            count=n_achieved,
-            total=n_total,
-            icon="🏆",
-            color=Colors.SUCCESS,
-            suffix="개",
-        )
-
-    # 911점 미달 센터 (기존 850점 미만 위험 → 미달로 변경)
-    if '총점' in df_latest.columns:
-        n_below = int((df_latest['총점'] < TARGET_TOTAL).sum())
-    else:
-        n_below = 0
+        count_big_card(label=second_label, count=second_count, total=n_total, icon="🏆", color=second_color, suffix="개")
 
     with cols[2 % n_cols]:
-        count_big_card(
-            label=f"{half_label} 911점 미달" if is_final_month else "911점 미달 센터",
-            count=n_below,
-            total=n_total,
-            icon="⚠️",
-            color=Colors.WARNING if n_below > 0 else Colors.SUCCESS,
-            suffix="개",
-        )
+        count_big_card(label=third_label, count=third_count, total=n_total, icon="⚠️", color=third_color, suffix="개")
 
-    if '총점' in df_latest.columns and len(df_latest) > 0:
-        max_s = df_latest['총점'].max()
-        min_s = df_latest['총점'].min()
-        gap = max_s - min_s
-    else:
-        gap = 0
-        max_s = 0
-        min_s = 0
-
+    max_s = df_latest["총점"].max() if "총점" in df_latest.columns else 0
+    min_s = df_latest["총점"].min() if "총점" in df_latest.columns else 0
     with cols[3 % n_cols]:
         big_metric_card(
             label="최고-최저 격차",
-            value=f"{gap:,.1f}점",
-            delta=f"최고 {max_s:,.1f} / 최저 {min_s:,.1f}" if '총점' in df_latest.columns else None,
+            value=f"{max_s - min_s:,.1f}점",
+            delta=f"최고 {max_s:,.1f} / 최저 {min_s:,.1f}",
             delta_color="off",
             icon="📏",
         )
-
     st.markdown("")
+
 
     # ==================== 2. 인사이트 ====================
     if is_final_month:
@@ -216,7 +239,7 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
     st.markdown("### 📈 분포 및 추이")
 
     if device_type == "mobile":
-        _render_distribution_chart(df_latest, is_final_month, half_label)
+        _render_distribution_chart(df_latest, is_final_month, half_label, df, df_last_year)
         st.markdown("")
         _render_trend_chart(df)
     else:
@@ -575,24 +598,40 @@ def _render_pace_lag_list(pace_lag_df: pd.DataFrame):
     st.markdown(html, unsafe_allow_html=True)
 
 
-def _render_distribution_chart(df_latest: pd.DataFrame, is_final_month: bool = False, half_label: str = ""):
-    if df_latest is None or df_latest.empty or '총점' not in df_latest.columns:
+def _render_distribution_chart(
+    df_latest: pd.DataFrame,
+    is_final_month: bool = False,
+    half_label: str = "",
+    df_all: pd.DataFrame = None,
+    df_last_year: pd.DataFrame = None,
+):
+    if df_latest is None or df_latest.empty or "총점" not in df_latest.columns:
         st.info("분포 데이터가 없습니다.")
         return
 
-    scores = df_latest['총점'].dropna()
-    if scores.empty:
-        st.info("점수 데이터가 없습니다.")
-        return
-
-    grades = {
-        "🟢 달성 (911+)": int((scores >= ScoreThresholds.SUCCESS_MIN).sum()),
-        "🟡 주의 (881~910)": int(((scores >= ScoreThresholds.WARNING_MIN) & (scores < ScoreThresholds.SUCCESS_MIN)).sum()),
-        "🟠 경고 (851~880)": int(((scores >= ScoreThresholds.ALERT_MIN) & (scores < ScoreThresholds.WARNING_MIN)).sum()),
-        "🔴 위험 (~850)": int((scores < ScoreThresholds.ALERT_MIN).sum()),
-    }
-
-    colors = [Colors.SUCCESS, Colors.WARNING, Colors.ALERT, Colors.DANGER]
+    # 진행 중: 현재 누적점수 구간 대신 반기 최종 전망 안전도를 분포로 사용
+    if not is_final_month and df_all is not None:
+        outlook = get_half_outlook(df_all, df_last_year=df_last_year)
+        if not outlook.empty:
+            grades = {
+                "🟢 안전 (911점 이상 전망)": int((outlook["안전도"] == "안전").sum()),
+                "🟡 주의 (895~910점 전망)": int((outlook["안전도"] == "주의").sum()),
+                "🔴 위험 (895점 미만 전망)": int((outlook["안전도"] == "위험").sum()),
+            }
+            colors = [Colors.SUCCESS, Colors.WARNING, Colors.DANGER]
+            chart_title = f"<b>{half_label} 마감 페이스 분포</b> (총 {len(outlook)}개)"
+        else:
+            grades, colors, chart_title = {}, [], "페이스 데이터 없음"
+    else:
+        scores = df_latest["총점"].dropna()
+        grades = {
+            "🟢 달성 (911+)": int((scores >= ScoreThresholds.SUCCESS_MIN).sum()),
+            "🟡 주의 (881~910)": int(((scores >= ScoreThresholds.WARNING_MIN) & (scores < ScoreThresholds.SUCCESS_MIN)).sum()),
+            "🟠 경고 (851~880)": int(((scores >= ScoreThresholds.ALERT_MIN) & (scores < ScoreThresholds.WARNING_MIN)).sum()),
+            "🔴 위험 (~850)": int((scores < ScoreThresholds.ALERT_MIN).sum()),
+        }
+        colors = [Colors.SUCCESS, Colors.WARNING, Colors.ALERT, Colors.DANGER]
+        chart_title = f"<b>{half_label} 최종 점수 구간 분포</b> (총 {sum(grades.values())}개)"
 
     fig = go.Figure(data=[go.Pie(
         labels=list(grades.keys()),
@@ -603,12 +642,6 @@ def _render_distribution_chart(df_latest: pd.DataFrame, is_final_month: bool = F
         textfont=dict(size=14, color="white"),
         hovertemplate="<b>%{label}</b><br>%{value}개 (%{percent})<extra></extra>",
     )])
-
-    total = sum(grades.values())
-    chart_title = (
-        f"<b>{half_label} 최종 점수 구간 분포</b> (총 {total}개)"
-        if is_final_month else f"<b>점수 구간 분포</b> (총 {total}개)"
-    )
     fig.update_layout(
         title=dict(text=chart_title, font=dict(size=15)),
         height=320,
@@ -620,44 +653,64 @@ def _render_distribution_chart(df_latest: pd.DataFrame, is_final_month: bool = F
     st.plotly_chart(fig, use_container_width=True)
 
 
+
 def _render_trend_chart(df: pd.DataFrame):
-    if df is None or df.empty or '평가월' not in df.columns or '총점' not in df.columns:
+    """현재 반기 데이터만 그린다. 6월→7월 리셋을 하나의 하락선으로 연결하지 않는다."""
+    if df is None or df.empty or "평가월" not in df.columns or "총점" not in df.columns:
         st.info("추이 데이터가 없습니다.")
         return
 
-    df_clean = df.dropna(subset=['평가월', '총점']).copy()
+    df_clean = df.dropna(subset=["평가월", "총점"]).copy()
+    df_clean["_month_dt"] = pd.to_datetime(df_clean["평가월"], errors="coerce")
+    df_clean = df_clean.dropna(subset=["_month_dt"])
     if df_clean.empty:
         st.info("추이 데이터가 없습니다.")
         return
 
-    monthly_avg = df_clean.groupby('평가월')['총점'].mean().reset_index().sort_values('평가월')
-    monthly_avg['월라벨'] = pd.to_datetime(monthly_avg['평가월']).dt.strftime("%Y-%m")
+    latest = df_clean["_month_dt"].max()
+    half_label = _get_half(latest.month)
+    valid_months = range(1, 7) if half_label == "상반기" else range(7, 13)
+
+    # 현재 연도·현재 반기만 표시
+    df_half = df_clean[
+        (df_clean["_month_dt"].dt.year == latest.year)
+        & (df_clean["_month_dt"].dt.month.isin(valid_months))
+    ].copy()
+
+    monthly_avg = (
+        df_half.groupby("_month_dt")["총점"]
+        .mean()
+        .reset_index()
+        .sort_values("_month_dt")
+    )
+    monthly_avg["월라벨"] = monthly_avg["_month_dt"].dt.strftime("%b")
 
     fig = go.Figure()
-
     fig.add_trace(go.Scatter(
-        x=monthly_avg['월라벨'],
-        y=monthly_avg['총점'],
-        mode='lines+markers+text',
-        name='전체 평균',
+        x=monthly_avg["월라벨"],
+        y=monthly_avg["총점"],
+        mode="lines+markers+text",
+        name="전체 평균",
         line=dict(color=Colors.PRIMARY, width=3),
         marker=dict(size=10, color=Colors.PRIMARY),
-        text=[f"{v:.1f}" for v in monthly_avg['총점']],
+        text=[f"{v:.1f}" for v in monthly_avg["총점"]],
         textposition="top center",
         textfont=dict(size=11, color=Colors.TEXT_MAIN),
         hovertemplate="<b>%{x}</b><br>평균 %{y:.1f}점<extra></extra>",
     ))
 
-    fig.add_hline(
-        y=ScoreThresholds.TARGET,
-        line_dash="dash",
-        line_color=Colors.WARNING,
-        annotation_text=f"목표 {ScoreThresholds.TARGET}",
-        annotation_position="right",
-    )
+    # 911점은 반기 최종 목표이므로, 진행 중에는 목표선 대신 참고 문구만 표시
+    if _is_half_end(latest):
+        fig.add_hline(
+            y=ScoreThresholds.TARGET,
+            line_dash="dash",
+            line_color=Colors.WARNING,
+            annotation_text=f"반기 목표 {ScoreThresholds.TARGET}",
+            annotation_position="right",
+        )
 
     fig.update_layout(
-        title=dict(text="<b>전체 평균 점수 추이</b>", font=dict(size=15)),
+        title=dict(text=f"<b>{latest.year}년 {half_label} 평균 점수 추이</b>", font=dict(size=15)),
         height=320,
         margin=dict(t=50, b=40, l=40, r=40),
         showlegend=False,
@@ -666,6 +719,9 @@ def _render_trend_chart(df: pd.DataFrame):
         **PLOTLY_LAYOUT,
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    if not _is_half_end(latest):
+        st.caption("※ 반기 누적점수는 1월·7월에 0점부터 다시 시작합니다. 진행 중에는 911점 목표선을 현재 점수와 직접 비교하지 않습니다.")
 
 
 def _render_half_outlook(
@@ -742,7 +798,7 @@ def _render_half_outlook(
         with st.expander(f"📋 센터별 {half_label} 최종 결과 상세 보기", expanded=False):
             # ⭐ 상반기 마감이면 '하반기필요점수' 컬럼 표시
             if half_label == '상반기' and '하반기필요점수' in outlook.columns:
-                display_cols = ['센터명', '현재점수', '목표차이', '하반기필요점수', '안전도', '통합여부']
+                display_cols = ["센터명", "현재점수", "현실전망", "낙관전망", "목표차이", "안전도", "전망근거", "통합여부"]
             else:
                 display_cols = ['센터명', '현재점수', '목표차이', '안전도', '통합여부']
 
@@ -872,7 +928,7 @@ def _render_half_outlook(
             ),
             '현실전망': st.column_config.NumberColumn(
                 format="%.1f점",
-                help="최근 3개월 평균 페이스 유지 시 예상 반기 최종 점수"
+                help="작년 동일 반기 누적 진행률을 우선 적용한 예상 반기 최종 점수 (작년 데이터 없으면 반기 경과개월 환산)"
             ),
             '목표차이': st.column_config.NumberColumn(
                 format="%+.1f점", help="911점 - 현실전망"
