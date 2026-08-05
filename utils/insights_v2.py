@@ -798,9 +798,12 @@ def get_all_insights(
     if len(months) == 0:
         return []
 
-    latest = months[-1]
-    prev = months[-2] if len(months) >= 2 else None
-
+    latest_month_num = pd.Timestamp(latest).month
+    if latest_month_num in (1, 7):
+        prev = None
+    else:
+        prev = months[-2]
+        
     candidates = [
         insight_overall_score(df, latest, prev),
         insight_achievers(df, latest),          # ⭐ 달성 센터 축하
