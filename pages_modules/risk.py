@@ -1,129 +1,271 @@
 """
 위험 관리 페이지
-- 목표 미달 예상 센터 식별
-- 위험도별 분류 표시
+- 진행 중: 반기말 예측점수 기준 안전/주의/위험 분류
+- 반기 마감: 실제 총점 기준 달성/근접미달/미달 분류
 """
 
 import streamlit as st
 import pandas as pd
+
 from utils.styles import ScoreThresholds
-from utils.helpers import get_period_info
-from utils.prediction import add_predictions_to_df, get_risk_level
+from utils.half_year import (
+    get_latest_month,
+    filter_by_month,
+    get_period_info,
+)
+from utils.prediction import add_predictions_to_df
 from components.kpi_card import risk_card
 
 
-def show(df: pd.DataFrame, device_type: str = 'desktop'):
+TARGET_SCORE = 911
+CAUTION_SCORE = 895
+
+
+def show(df: pd.DataFrame, device_type: str = "desktop"):
     """위험 관리 페이지 메인 함수"""
-    
     try:
-        latest_month = df['평가월'].max()
-        df_latest = df[df['평가월'] == latest_month].copy()
-        
-        period_info = get_period_info(latest_month)
-        period_month = period_info['period_month']
-        
-        # 예측 점수 계산
-        with st.spinner("🔮 위험도 분석 중..."):
-            df_latest = add_predictions_to_df(df_latest, period_month)
-        
-        # 목표 미달 센터 추출
-        risk_centers = df_latest[
-            df_latest['예측점수'] < ScoreThresholds.TARGET
-        ].copy()
-        
-        # 위험도 순으로 정렬 (낮은 예측점수 = 더 위험)
-        risk_centers = risk_centers.sort_values('예측점수', ascending=True)
-        
-        # 결과 없을 때
-        if len(risk_centers) == 0:
-            st.success("🎉 모든 센터가 목표 달성 예상입니다!")
-            _show_summary_stats(df_latest)
+        latest_month = get_latest_month(df)
+
+        if latest_month is None:
+            st.warning("⚠️ 최신 평가월 데이터를 찾을 수 없습니다.")
             return
-        
-        # 요약 헤더
-        _show_risk_summary(risk_centers, df_latest, period_info)
-        
-        st.divider()
-        
-        # 위험 센터별 카드
-        st.subheader(f"⚠️ 위험 센터 상세 ({len(risk_centers)}개)")
-        
-        for _, row in risk_centers.iterrows():
-            risk_card(
-                center_name=row['센터명'],
-                current_score=row['총점'],
-                predicted_score=row['예측점수'],
-                target=ScoreThresholds.TARGET
-            )
-        
+
+        df_latest = filter_by_month(df, latest_month)
+
+        if df_latest.empty:
+            st.warning("⚠️ 최신 월 데이터가 없습니다.")
+            return
+
+        period_info = get_period_info(latest_month)
+        is_final_month = period_info["is_half_end"]
+        half_label = period_info["half"]
+        period_month = period_info["period_month"]
+
+        # 진행월: 성과분석·홈과 동일한 예측점수 계산
+        # 마감월: 예측점수는 실제 총점과 동일
+        with st.spinner("🔮 반기 마감 전망 분석 중..."):
+            df_latest = add_predictions_to_df(df_latest, period_month)
+
+        if is_final_month:
+            _render_final_result(df_latest, half_label, device_type)
+        else:
+            _render_pace_risk(df_latest, period_info, device_type)
+
     except Exception as e:
         st.error(f"❌ 위험 관리 분석 오류: {e}")
-        import traceback
+
         with st.expander("🔍 상세 오류 정보"):
+            import traceback
             st.code(traceback.format_exc())
 
 
-def _show_risk_summary(risk_centers, df_latest, period_info):
-    """위험 센터 요약 카드"""
-    
+def _render_pace_risk(
+    df_latest: pd.DataFrame,
+    period_info: dict,
+    device_type: str,
+):
+    """진행 중 반기: 예측 반기말 점수 기준 위험 관리"""
+    safe_df = df_latest[df_latest["예측점수"] >= TARGET_SCORE].copy()
+
+    caution_df = df_latest[
+        (df_latest["예측점수"] >= CAUTION_SCORE)
+        & (df_latest["예측점수"] < TARGET_SCORE)
+    ].copy()
+
+    risk_df = df_latest[df_latest["예측점수"] < CAUTION_SCORE].copy()
+
+    safe_df = safe_df.sort_values("예측점수", ascending=False)
+    caution_df = caution_df.sort_values("예측점수")
+    risk_df = risk_df.sort_values("예측점수")
+
     total = len(df_latest)
-    risk_count = len(risk_centers)
-    safe_count = total - risk_count
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric(
-            "전체 센터",
-            f"{total}개"
-        )
-    
-    with col2:
-        st.metric(
-            "🟢 달성 예상",
-            f"{safe_count}개",
-            delta=f"{safe_count/total*100:.0f}%" if total > 0 else "0%"
-        )
-    
-    with col3:
-        st.metric(
-            "🔴 위험 센터",
-            f"{risk_count}개",
-            delta=f"{risk_count/total*100:.0f}%" if total > 0 else "0%",
-            delta_color="inverse"
-        )
-    
-    with col4:
-        avg_gap = (risk_centers['예측점수'] - ScoreThresholds.TARGET).mean()
-        st.metric(
-            "평균 목표 미달",
-            f"{avg_gap:+.1f}점"
+
+    st.markdown(
+        f"### 📅 {period_info['period_text']} 반기 마감 전망"
+    )
+    st.caption(
+        "※ 현재 누적점수가 아닌 반기말 예측점수로 판정합니다. "
+        "예측 기준은 성과분석·홈 화면과 동일합니다."
+    )
+
+    cols = st.columns(3 if device_type != "mobile" else 1)
+
+    summary = [
+        ("✅ 안전", "911점 이상 예상", len(safe_df), "normal"),
+        ("⚠️ 주의", "895~910점 예상", len(caution_df), "off"),
+        ("🚨 위험", "895점 미만 예상", len(risk_df), "inverse"),
+    ]
+
+    for idx, (label, help_text, count, delta_color) in enumerate(summary):
+        with cols[idx % len(cols)]:
+            st.metric(
+                label=label,
+                value=f"{count}개 / {total}개",
+                delta=help_text,
+                delta_color=delta_color,
+            )
+
+    st.divider()
+
+    # 위험 센터
+    if not risk_df.empty:
+        st.subheader(f"🚨 반기 마감 위험 센터 ({len(risk_df)}개)")
+        st.caption("예측 반기말 점수가 895점 미만인 센터입니다.")
+
+        for _, row in risk_df.iterrows():
+            risk_card(
+                center_name=row["센터명"],
+                current_score=row["총점"],
+                predicted_score=row["예측점수"],
+                target=TARGET_SCORE,
+            )
+    else:
+        st.success("🎉 예측 기준 895점 미만 위험 센터가 없습니다.")
+
+    # 주의 센터
+    if not caution_df.empty:
+        st.divider()
+        st.subheader(f"⚠️ 목표 근접 주의 센터 ({len(caution_df)}개)")
+        st.caption("911점까지 소폭 보완이 필요한 센터입니다.")
+
+        display_df = caution_df[
+            ["센터명", "총점", "예측점수"]
+        ].copy()
+
+        display_df["목표차이"] = (
+            display_df["예측점수"] - TARGET_SCORE
         )
 
+        st.dataframe(
+            display_df,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "총점": st.column_config.NumberColumn(
+                    "현재 누적점수",
+                    format="%.1f점",
+                ),
+                "예측점수": st.column_config.NumberColumn(
+                    "반기말 예상점수",
+                    format="%.1f점",
+                ),
+                "목표차이": st.column_config.NumberColumn(
+                    "911점 대비",
+                    format="%+.1f점",
+                ),
+            },
+        )
 
-def _show_summary_stats(df_latest):
-    """모든 센터 달성 시 보여줄 요약"""
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric(
-            "전체 센터",
-            f"{len(df_latest)}개"
-        )
-    
-    with col2:
-        avg = df_latest['예측점수'].mean()
-        st.metric(
-            "평균 예측 점수",
-            f"{avg:.1f}점",
-            delta=f"목표 +{avg - ScoreThresholds.TARGET:.1f}"
-        )
-    
-    with col3:
-        min_score = df_latest['예측점수'].min()
-        st.metric(
-            "최저 예측 점수",
-            f"{min_score:.1f}점",
-            delta=f"목표 +{min_score - ScoreThresholds.TARGET:.1f}"
+    # 안전 센터는 접어서 제공
+    with st.expander(f"✅ 안전 페이스 센터 {len(safe_df)}개 보기", expanded=False):
+        if safe_df.empty:
+            st.info("안전 페이스 센터가 없습니다.")
+        else:
+            display_df = safe_df[
+                ["센터명", "총점", "예측점수"]
+            ].copy()
+
+            display_df["목표여유"] = (
+                display_df["예측점수"] - TARGET_SCORE
+            )
+
+            st.dataframe(
+                display_df,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "총점": st.column_config.NumberColumn(
+                        "현재 누적점수",
+                        format="%.1f점",
+                    ),
+                    "예측점수": st.column_config.NumberColumn(
+                        "반기말 예상점수",
+                        format="%.1f점",
+                    ),
+                    "목표여유": st.column_config.NumberColumn(
+                        "911점 대비",
+                        format="%+.1f점",
+                    ),
+                },
+            )
+
+
+def _render_final_result(
+    df_latest: pd.DataFrame,
+    half_label: str,
+    device_type: str,
+):
+    """6월·12월: 실제 최종점수 기준 결과"""
+    achieved_df = df_latest[df_latest["총점"] >= TARGET_SCORE].copy()
+
+    near_df = df_latest[
+        (df_latest["총점"] >= CAUTION_SCORE)
+        & (df_latest["총점"] < TARGET_SCORE)
+    ].copy()
+
+    fail_df = df_latest[df_latest["총점"] < CAUTION_SCORE].copy()
+
+    achieved_df = achieved_df.sort_values("총점", ascending=False)
+    near_df = near_df.sort_values("총점")
+    fail_df = fail_df.sort_values("총점")
+
+    total = len(df_latest)
+
+    st.markdown(f"### 🏁 {half_label} 최종 위험 관리")
+    st.caption("※ 반기 마감월이므로 예측이 아닌 실제 최종점수로 판정합니다.")
+
+    cols = st.columns(3 if device_type != "mobile" else 1)
+
+    summary = [
+        ("✅ 달성", "911점 이상", len(achieved_df), "normal"),
+        ("⚠️ 근접 미달", "895~910점", len(near_df), "off"),
+        ("🚨 미달", "895점 미만", len(fail_df), "inverse"),
+    ]
+
+    for idx, (label, help_text, count, delta_color) in enumerate(summary):
+        with cols[idx % len(cols)]:
+            st.metric(
+                label=label,
+                value=f"{count}개 / {total}개",
+                delta=help_text,
+                delta_color=delta_color,
+            )
+
+    if fail_df.empty and near_df.empty:
+        st.success("🎉 모든 센터가 반기 목표 911점을 달성했습니다.")
+        return
+
+    if not fail_df.empty:
+        st.divider()
+        st.subheader(f"🚨 {half_label} 미달 센터 ({len(fail_df)}개)")
+
+        for _, row in fail_df.iterrows():
+            risk_card(
+                center_name=row["센터명"],
+                current_score=row["총점"],
+                predicted_score=row["총점"],
+                target=TARGET_SCORE,
+            )
+
+    if not near_df.empty:
+        st.divider()
+        st.subheader(f"⚠️ {half_label} 근접 미달 센터 ({len(near_df)}개)")
+
+        display_df = near_df[["센터명", "총점"]].copy()
+        display_df["목표차이"] = display_df["총점"] - TARGET_SCORE
+
+        st.dataframe(
+            display_df,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "총점": st.column_config.NumberColumn(
+                    "최종점수",
+                    format="%.1f점",
+                ),
+                "목표차이": st.column_config.NumberColumn(
+                    "911점 대비",
+                    format="%+.1f점",
+                ),
+            },
         )
