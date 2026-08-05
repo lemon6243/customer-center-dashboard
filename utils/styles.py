@@ -80,11 +80,11 @@ def get_score_grade(score: float) -> tuple:
 GLOBAL_CSS = f"""
 <style>
     .main-header {{
-        font-size: 2.2rem;
+        font-size: 2rem;
         font-weight: 700;
         text-align: center;
-        margin-bottom: 1.5rem;
-        padding: 1.5rem;
+        margin-bottom: 1rem;
+        padding: 1.0rem 1.5rem;
         background: {Colors.GRADIENT_PRIMARY};
         color: white;
         border-radius: 12px;
