@@ -83,11 +83,7 @@ def _normalize_pct(val) -> float:
     v = float(val)
     return v * 100 if v <= 1.0 else v
 
-        return pd.DataFrame()
-
-    target_month = pd.Timestamp(latest).month
-    month_series = pd.to_datetime(df_last_year['평가월'], errors='coerce')
-    return df_last_year[month_series.dt.month == target_month]
+        
 
 def _needed_for_annual_pass(h1_score: float) -> float:
     return max(ANNUAL_PASS_TOTAL - h1_score, 0)
