@@ -153,16 +153,20 @@ def _show_uploader():
                 st.error("❌ 데이터 로딩 실패. 파일 형식을 확인해주세요.")
                 return
             
-            is_valid, messages = validate_cumulative_data(df_raw)
+            is_valid, errors, warnings = validate_cumulative_data(df_raw)
+
+            # 관리자 화면에서 확인할 수 있도록 저장
+            st.session_state["data_validation_errors"] = errors
+            st.session_state["data_validation_warnings"] = warnings
             
             if not is_valid:
                 st.error("❌ 데이터 검증 실패")
-                for msg in messages:
+                for msg in errors:
                     st.error(msg)
                 return
             
-            # 검증 통과 → 점수 계산
             st.success("✅ 데이터 검증 완료")
+
             df_scored = calculate_scores(df_raw)
             st.session_state['df'] = df_scored
             
