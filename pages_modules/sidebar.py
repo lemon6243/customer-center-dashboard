@@ -271,3 +271,33 @@ def show_settings():
             st.session_state.clear()
             st.success("✅ 캐시가 초기화되었습니다. 페이지를 새로고침하세요.")
             st.rerun()
+    # ==================== 관리자 전용: 데이터 품질 점검 ====================
+        with st.sidebar.expander("⚙️ 관리자", expanded=False):
+            admin_password = st.text_input(
+                "관리자 비밀번호",
+                type="password",
+                key="admin_password_input",
+            )
+    
+            expected_password = st.secrets.get("admin_password", "")
+    
+            if expected_password and admin_password == expected_password:
+                st.success("관리자 모드")
+    
+                errors = st.session_state.get("data_validation_errors", [])
+                warnings = st.session_state.get("data_validation_warnings", [])
+    
+                st.markdown("#### 데이터 품질 점검")
+    
+                if not errors and not warnings:
+                    st.success("✅ 데이터 검증 결과 이상 없음")
+    
+                for message in errors:
+                    st.error(message)
+    
+                for message in warnings:
+                    st.warning(message)
+    
+            elif admin_password:
+                st.error("비밀번호가 일치하지 않습니다.")
+
