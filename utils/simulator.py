@@ -338,61 +338,6 @@ def get_improvement_actions(
             "예상기여점수": round(contribution, 1),
         })
 
-def get_improvement_actions(
-    baseline_kpis: Dict[str, float],
-    adjustment: float = 0.0,
-    target: float = TARGET_TOTAL,
-    top_n: int = 3,
-) -> list[Dict[str, float]]:
-    """목표점수 도달에 필요한 우선 개선 KPI를 반환"""
-    baseline_result = calculate_simulated_score(
-        baseline_kpis=baseline_kpis,
-        simulated_kpis=baseline_kpis,
-        adjustment=adjustment,
-    )
-
-    if baseline_result.predicted_score >= target:
-        return []
-
-    min_combo = find_minimum_combo(
-        baseline_kpis=baseline_kpis,
-        adjustment=adjustment,
-        target=target,
-    )
-
-    if min_combo is None:
-        return []
-
-    actions = []
-
-    for kpi in list(CUMULATIVE_KPIS) + list(VARIABLE_KPIS):
-        current = baseline_kpis.get(kpi, 0.0)
-        goal = min_combo.get(kpi, current)
-        increase = goal - current
-
-        if increase <= 0.05:
-            continue
-
-        candidate = baseline_kpis.copy()
-        candidate[kpi] = goal
-
-        candidate_result = calculate_simulated_score(
-            baseline_kpis=baseline_kpis,
-            simulated_kpis=candidate,
-            adjustment=adjustment,
-        )
-
-        actions.append({
-            "KPI": kpi,
-            "현재전망": round(current, 1),
-            "목표값": round(goal, 1),
-            "필요상승": round(increase, 1),
-            "예상기여점수": round(
-                candidate_result.predicted_score
-                - baseline_result.predicted_score,
-                1,
-            ),
-        })
 
     return sorted(
         actions,
