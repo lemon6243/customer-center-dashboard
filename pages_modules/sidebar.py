@@ -8,6 +8,7 @@
 
 import streamlit as st
 import pandas as pd
+import os
 from datetime import datetime
 
 from data_loader import load_cumulative_data, validate_cumulative_data
@@ -81,31 +82,53 @@ def show_data_management():
 
 
 def _show_data_info(df: pd.DataFrame):
-    """현재 데이터 정보 카드"""
-    
+    """현재 데이터 기준·범위·파일 상태 표시"""
     st.success("✅ 데이터 로드됨")
-    
-    center_count = len(safe_unique_centers(df))
-    
-    try:
-        min_month = (
-            df['평가월'].min().strftime('%Y-%m') 
-            if df['평가월'].notna().any() else '-'
+
+    work = df.copy()
+    work["평가월"] = pd.to_datetime(work["평가월"], errors="coerce")
+    work = work.dropna(subset=["평가월"])
+
+    center_count = len(safe_unique_centers(work))
+    row_count = len(work)
+
+    if work.empty:
+        st.warning("평가월 정보를 확인할 수 없습니다.")
+        return
+
+    min_month = work["평가월"].min()
+    latest_month = work["평가월"].max()
+
+    latest_df = work[work["평가월"] == latest_month]
+    latest_center_count = len(safe_unique_centers(latest_df))
+
+    # 배포된 데이터 파일의 수정 시각
+    data_path = "data/latest_data.xlsx"
+    if os.path.exists(data_path):
+        file_modified = datetime.fromtimestamp(
+            os.path.getmtime(data_path)
+        ).strftime("%Y-%m-%d %H:%M")
+    else:
+        file_modified = "세션 업로드 데이터"
+
+    st.info(
+        f"""
+📌 **데이터 현황**
+- **데이터 기준월:** {latest_month.strftime('%Y년 %m월')}
+- **최신월 대상 센터:** {latest_center_count}개
+- **전체 평가 기간:** {min_month.strftime('%Y년 %m월')} ~ {latest_month.strftime('%Y년 %m월')}
+- **전체 데이터:** {row_count:,}행 / {center_count}개 센터
+- **데이터 파일 수정:** {file_modified}
+"""
+    )
+
+    # 최신월 데이터 누락 여부를 간단히 표시
+    if latest_center_count < center_count:
+        st.warning(
+            f"⚠️ 최신월 센터 수가 전체 센터 수보다 {center_count - latest_center_count}개 적습니다."
         )
-        max_month = (
-            df['평가월'].max().strftime('%Y-%m') 
-            if df['평가월'].notna().any() else '-'
-        )
-    except Exception:
-        min_month, max_month = '-', '-'
-    
-    st.info(f"""
-    📌 **현재 데이터**
-    - 총 행수: {len(df):,}
-    - 센터 수: {center_count}개
-    - 평가 기간: {min_month} ~ {max_month}
-    - 최종 업데이트: GitHub 최신 버전
-    """)
+
+
 
 
 def _show_uploader():
