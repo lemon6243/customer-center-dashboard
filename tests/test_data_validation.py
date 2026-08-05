@@ -15,7 +15,7 @@ def test_duplicate_center_month_is_invalid():
 
     df = add_period_columns(df)
 
-    is_valid, errors = validate_cumulative_data(df)
+    is_valid, errors, warnings = validate_cumulative_data(df)
 
     assert is_valid is False
     assert any("중복" in error for error in errors)
@@ -41,7 +41,7 @@ def test_july_data_is_not_flagged_as_month_gap():
 
     df = add_period_columns(df)
 
-    is_valid, errors = validate_cumulative_data(df)
+    is_valid, errors, warnings = validate_cumulative_data(df)
 
     assert is_valid is True
     assert errors == []
