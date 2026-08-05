@@ -12,6 +12,7 @@ from typing import Optional, Tuple
 
 # 로컬 모듈
 from score_calculator import calculate_scores
+from data_loader import add_period_columns, validate_cumulative_data
 
 # 유틸
 from utils.styles import apply_global_styles
@@ -100,7 +101,7 @@ def load_latest_data_from_github() -> Tuple[Optional[pd.DataFrame], Optional[pd.
             return None, None
         
         # 데이터 정리
-        df_all = clean_dataframe(df_all)
+        df_all = add_period_columns(df_all)
         
         if df_all.empty:
             st.error("❌ 유효한 데이터가 없습니다.")
@@ -131,6 +132,14 @@ def load_latest_data_from_github() -> Tuple[Optional[pd.DataFrame], Optional[pd.
         ]
         if any(c not in df_current.columns for c in required_scores):
             df_current = calculate_scores(df_current)
+        # GitHub 자동 로드 데이터도 업로드 데이터와 동일하게 검증
+        is_valid, validation_errors = validate_cumulative_data(df_current)
+        
+        if not is_valid:
+            for msg in validation_errors:
+                st.error(msg)
+            return None, df_last
+
         
         # 작년 데이터는 점수 재계산하지 않음 (구조가 다르므로 총점 그대로 사용)
         
