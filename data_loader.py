@@ -321,13 +321,13 @@ def validate_cumulative_data(df: pd.DataFrame) -> tuple[bool, List[str], List[st
     warnings: List[str] = []
 
     if df is None or df.empty:
-        return False, ["❌ 검증할 데이터가 없습니다."]
+        return False, ["❌ 검증할 데이터가 없습니다."], []
 
     required_cols = ["센터명", "평가월"]
 
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
-        return False, [f"❌ 필수 컬럼 누락: {', '.join(missing_cols)}"]
+        return False, [f"❌ 필수 컬럼 누락: {', '.join(missing_cols)}"], []
 
     work = add_period_columns(df)
 
