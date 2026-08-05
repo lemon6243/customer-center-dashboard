@@ -29,6 +29,60 @@ def _clean_center_and_month(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     return df.reset_index(drop=True)
+    
+def add_period_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """평가월 기준 연도·월·반기 컬럼을 공통으로 생성"""
+    result = df.copy()
+
+    result["평가월"] = pd.to_datetime(result["평가월"], errors="coerce")
+    result["연도"] = result["평가월"].dt.year
+    result["월"] = result["평가월"].dt.month
+    result["반기"] = result["월"].apply(
+        lambda m: "상반기" if pd.notna(m) and m <= 6 else "하반기"
+    )
+
+    return result
+
+def validate_ratio_scale_mixing(df: pd.DataFrame) -> tuple[bool, List[str]]:
+    """
+    비율 컬럼에 0~1 형식과 0~100 형식이 섞였는지 검사.
+
+    예:
+    - 정상: 0.95, 0.88
+    - 정상: 95, 88
+    - 오류: 0.95, 88  ← 혼재
+    """
+    ratio_cols = [
+        "안전점검실점검율",
+        "중점고객안전점검율",
+        "사용계약율",
+        "상담응대율",
+        "상담기여도",
+    ]
+
+    errors = []
+
+    for col in ratio_cols:
+        if col not in df.columns:
+            continue
+
+        values = pd.to_numeric(df[col], errors="coerce").dropna()
+
+        if values.empty:
+            continue
+
+        has_fraction = ((values >= 0) & (values <= 1.2)).any()
+        has_percent = (values > 1.5).any()
+
+        if has_fraction and has_percent:
+            errors.append(
+                f"❌ '{col}' 컬럼에 비율 형식이 혼재되어 있습니다. "
+                f"0~1 형식 또는 0~100 형식 중 하나로 통일해주세요."
+            )
+
+    return len(errors) == 0, errors
+
+
 
 
 def load_cumulative_data(uploaded_file) -> Optional[pd.DataFrame]:
@@ -66,15 +120,20 @@ def load_cumulative_data(uploaded_file) -> Optional[pd.DataFrame]:
             )
             return None
 
-        # 연도/월 파생
-        df['연도'] = df['평가월'].dt.year
-        df['월'] = df['평가월'].dt.month
+        # 비율값 형식 혼재 확인: 0.95와 95가 같이 있으면 자동 변환 시 오류 발생
+        is_ratio_valid, ratio_errors = validate_ratio_scale_mixing(df)
+        
+        if not is_ratio_valid:
+            for msg in ratio_errors:
+                st.error(msg)
+            return None
+        
+        # 연도·월·반기 공통 컬럼 생성
+        df = add_period_columns(df)
+        
+        # 정렬
+        df = df.sort_values(["센터명", "연도", "반기", "평가월"]).reset_index(drop=True)
 
-        # 반기 자동 분류
-        df['반기'] = df['월'].apply(lambda m: '상반기' if m <= 6 else '하반기')
-
-        # 정렬 (센터명, 반기, 평가월 순)
-        df = df.sort_values(['센터명', '반기', '평가월']).reset_index(drop=True)
 
         # 데이터 방식 자동 감지
         if '당월안전점검완료' in df.columns:
@@ -238,52 +297,140 @@ def process_percentage_data(df: pd.DataFrame) -> pd.DataFrame:
 
 def validate_cumulative_data(df: pd.DataFrame) -> tuple[bool, List[str]]:
     """
-    누적 데이터 검증
+    처리 완료 데이터 검증
+
+    오류(error)
+    - 필수 컬럼 누락
+    - 센터명·평가월 중복
+    - 비율 범위 이상
+
+    경고(warning)
+    - 센터 수 변동
+    - 반기 내 월 누락
+    - 반기 시작월인데 총점이 지나치게 높은 경우
     """
     errors: List[str] = []
     warnings: List[str] = []
 
-    # 센터명/평가월 결측 재확인 (방어적)
-    if df['센터명'].isna().any():
-        warnings.append("⚠️ 센터명이 비어있는 행이 발견되었습니다. 자동 제외됩니다.")
-        df = df.dropna(subset=['센터명'])
+    if df is None or df.empty:
+        return False, ["❌ 검증할 데이터가 없습니다."]
 
-    # 센터 수 확인
-    center_count = df['센터명'].nunique()
+    required_cols = ["센터명", "평가월"]
+
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        return False, [f"❌ 필수 컬럼 누락: {', '.join(missing_cols)}"]
+
+    work = add_period_columns(df)
+
+    # 1. 센터명·평가월 중복 검사
+    duplicates = work.duplicated(
+        subset=["센터명", "평가월"],
+        keep=False,
+    )
+
+    if duplicates.any():
+        duplicate_rows = work.loc[
+            duplicates,
+            ["센터명", "평가월"],
+        ].sort_values(["센터명", "평가월"])
+
+        examples = [
+            f"{row['센터명']}({pd.Timestamp(row['평가월']).strftime('%Y-%m')})"
+            for _, row in duplicate_rows.head(5).iterrows()
+        ]
+
+        errors.append(
+            "❌ 동일 센터·동일 평가월 데이터가 중복되었습니다: "
+            + ", ".join(examples)
+            + (" 외" if len(duplicate_rows) > 5 else "")
+        )
+
+    # 2. 센터 수 확인
+    center_count = work["센터명"].nunique()
+
     if center_count != 24:
-        warnings.append(f"⚠️ 센터 수가 24개가 아닙니다 (현재: {center_count}개)")
+        warnings.append(
+            f"⚠️ 전체 센터 수가 24개가 아닙니다. 현재 {center_count}개입니다."
+        )
 
-    # 반기별 데이터 확인
-    unique_centers = sorted(df['센터명'].dropna().astype(str).unique())
-    for center in unique_centers:
-        center_data = df[df['센터명'] == center]
+    # 3. 반기별 월 순서/누락 확인
+    for (center, year, half), group in work.groupby(["센터명", "연도", "반기"]):
+        months = sorted(group["월"].dropna().astype(int).unique().tolist())
 
-        for period in ['상반기', '하반기']:
-            period_data = center_data[center_data['반기'] == period]
+        if not months:
+            continue
 
-            if len(period_data) > 0:
-                months = sorted(period_data['월'].dropna().unique().tolist())
-                expected_months = list(range(1, 7)) if period == '상반기' else list(range(7, 13))
+        start_month = 1 if half == "상반기" else 7
+        expected_months = list(range(start_month, max(months) + 1))
 
-                if months != expected_months[:len(months)]:
-                    warnings.append(f"⚠️ {center} {period} 데이터가 순차적이지 않습니다: {months}")
+        if months != expected_months:
+            warnings.append(
+                f"⚠️ {center} {int(year)}년 {half} 월 데이터가 순차적이지 않습니다: "
+                f"현재 {months} / 예상 {expected_months}"
+            )
 
-    # 비율 범위 확인
+    # 4. 비율 범위 검사
     percentage_cols = [
-        '안전점검실점검율', '중점고객안전점검율',
-        '사용계약율', '상담응대율', '상담기여도'
+        "안전점검실점검율",
+        "중점고객안전점검율",
+        "사용계약율",
+        "상담응대율",
+        "상담기여도",
     ]
 
     for col in percentage_cols:
-        if col in df.columns:
-            if (df[col] < 0).any() or (df[col] > 1.1).any():
-                errors.append(f"❌ {col}이 정상 범위(0~1)를 벗어났습니다")
+        if col not in work.columns:
+            continue
 
-    # 경고 메시지 표시
+        values = pd.to_numeric(work[col], errors="coerce").dropna()
+
+        if ((values < 0) | (values > 1.1)).any():
+            errors.append(
+                f"❌ {col} 값이 정상 범위(0~1)를 벗어났습니다. "
+                "업로드 데이터의 비율 형식을 확인해주세요."
+            )
+
+    # 5. 최신 월 센터 누락 확인
+    latest_month = work["평가월"].max()
+
+    if pd.notna(latest_month):
+        latest_df = work[work["평가월"] == latest_month]
+        latest_center_count = latest_df["센터명"].nunique()
+
+        if latest_center_count != center_count:
+            warnings.append(
+                f"⚠️ 최신 평가월({latest_month.strftime('%Y-%m')})의 센터 수는 "
+                f"{latest_center_count}개이며, 전체 센터 수 {center_count}개와 다릅니다."
+            )
+
+        # 6. 반기 시작월 리셋 의심 경고
+        latest_month_num = latest_month.month
+
+        if latest_month_num in (1, 7) and "총점" in latest_df.columns:
+            scores = pd.to_numeric(latest_df["총점"], errors="coerce").dropna()
+            high_score_centers = latest_df.loc[
+                pd.to_numeric(latest_df["총점"], errors="coerce") >= 850,
+                "센터명",
+            ].dropna().astype(str).tolist()
+
+            if high_score_centers:
+                preview = ", ".join(high_score_centers[:5])
+                suffix = " 외" if len(high_score_centers) > 5 else ""
+
+                warnings.append(
+                    f"⚠️ 반기 시작월({latest_month.strftime('%Y-%m')})인데 "
+                    f"850점 이상 센터가 {len(high_score_centers)}개입니다: "
+                    f"{preview}{suffix}. "
+                    "상반기/하반기 누적점수가 정상적으로 리셋되었는지 확인해주세요."
+                )
+
+    # 화면에 경고 출력
     for warning in warnings:
         st.warning(warning)
 
-    return (len(errors) == 0, errors)
+    return len(errors) == 0, errors
+
 
 
 def get_data_summary(df: pd.DataFrame) -> Dict:
