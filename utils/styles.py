@@ -146,13 +146,18 @@ GLOBAL_CSS = f"""
         opacity: 0 !important;
     }}
 
-    /* 사이드바 라디오 원형 표시 숨김 */
-    [data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {{
+        /* 사이드바 기본 라디오 원형 숨김 */
+    [data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child {{
         display: none !important;
     }}
 
-    [data-testid="stSidebar"] div[role="radiogroup"] label {{
-        padding-left: 14px !important;
+    [data-testid="stSidebar"] [data-baseweb="radio"] {{
+        padding-left: 0 !important;
+        margin: 0 !important;
+    }}
+
+    [data-testid="stSidebar"] [data-baseweb="radio"] > div:last-child {{
+        margin-left: 0 !important;
     }}
 
 
