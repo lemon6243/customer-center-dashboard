@@ -1,0 +1,6 @@
+is_half_start()
+is_half_end()
+get_half()
+get_period_month()
+get_comparison_month()
+filter_current_half()
