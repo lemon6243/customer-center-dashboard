@@ -192,6 +192,8 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     ranking = get_ranking_data(df_latest, n=5, mode="score")
     top_df = ranking.get("top", pd.DataFrame())
+    bottom_df = ranking.get("bottom", pd.DataFrame())
+
     
     # 진행 중인 반기에는 실제 누적점수 미달이 아닌
     # '반기 마감 예상점수' 기준의 페이스 위험 센터를 사용
@@ -220,7 +222,6 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
         st.markdown("")
     
         if is_final_month:
-            bottom_df = ranking.get("bottom", pd.DataFrame())
             _render_below_target_list(bottom_df, is_final_month, half_label)
         else:
             _render_pace_lag_list(pace_lag_df)
