@@ -195,7 +195,7 @@ def main():
     try:
         # 헤더
         st.markdown(
-            '<div class="main-header">🏢 예스코 고객센터 성과 대시보드</div>',
+            '<div class="main-header">예스코 고객센터 성과 대시보드</div>',
             unsafe_allow_html=True
         )
         
@@ -207,19 +207,9 @@ def main():
                 st.session_state['df'] = df_current
                 st.session_state['df_last_year'] = df_last_year  # ⭐ 작년 데이터 저장
                 
-                if df_current is not None:
-                    if df_last_year is not None and not df_last_year.empty:
-                        st.success(
-                            f"✅ 데이터 로드 완료! (금년 {len(df_current)}행 + 작년 {len(df_last_year)}행)",
-                            icon="✅"
-                        )
-                    else:
-                        st.success(
-                            f"✅ 데이터 로드 완료! (금년 {len(df_current)}행, 작년 데이터 없음)",
-                            icon="✅"
-                        )
-                else:
-                    st.info("💡 저장된 데이터가 없습니다. 사이드바에서 새 데이터를 업로드해주세요.")
+        if df_current is None:
+            st.info("💡 저장된 데이터가 없습니다. 사이드바에서 새 데이터를 업로드해주세요.")
+
         
         # ===== 사이드바 =====
         selected_page = sidebar.show_navigation()
