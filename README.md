@@ -60,6 +60,7 @@
 
 ```bash
 python -m pytest -q
+<<<<<<< Updated upstream
 
 🚀 로컬 실행
 Python 3.11 환경을 권장합니다.
@@ -82,3 +83,5 @@ KPI 비율값 형식 혼재
 최신월 센터 누락 여부
 
 현재 README의 `911점 미달 센터 자동 추출` 문구는 진행월 정책과 맞지 않아, 위처럼 **반기말 예측 기반 위험관리**로 바꾸
+=======
+>>>>>>> Stashed changes
