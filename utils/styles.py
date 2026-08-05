@@ -272,12 +272,12 @@ GLOBAL_CSS = f"""
         }}
     }}
 
-    /* ========== YESCO 사이드바 메뉴 통일 ========== */
-    [data-testid="stSidebar"] div[role="radiogroup"] {
+        /* ========== YESCO 사이드바 메뉴 통일 ========== */
+    [data-testid="stSidebar"] div[role="radiogroup"] {{
         gap: 6px !important;
-    }
+    }}
 
-    [data-testid="stSidebar"] div[role="radiogroup"] label {
+    [data-testid="stSidebar"] div[role="radiogroup"] label {{
         width: 100% !important;
         min-height: 46px !important;
         margin: 0 !important;
@@ -290,29 +290,21 @@ GLOBAL_CSS = f"""
         font-weight: 600 !important;
         display: flex !important;
         align-items: center !important;
-        transition: background 0.15s ease, border-color 0.15s ease !important;
-    }
+    }}
 
-    [data-testid="stSidebar"] div[role="radiogroup"] label:hover {
+    [data-testid="stSidebar"] div[role="radiogroup"] label:hover {{
         border-color: #0B4EA2 !important;
         background: #F4F8FC !important;
-        transform: none !important;
-    }
+    }}
 
-    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
+    [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {{
         background: #0B4EA2 !important;
         border-color: #0B4EA2 !important;
         color: #FFFFFF !important;
-        box-shadow: none !important;
-    }
-
-    [data-testid="stSidebar"] div[role="radiogroup"] label input {
-        position: absolute !important;
-        opacity: 0 !important;
-    }
+    }}
 
     /* ========== 핵심지표 카드 공통 규격 ========== */
-    .yesco-metric-card {
+    .yesco-metric-card {{
         min-height: 158px;
         height: 158px;
         box-sizing: border-box;
@@ -324,57 +316,49 @@ GLOBAL_CSS = f"""
         border-radius: 10px;
         padding: 18px 20px;
         box-shadow: 0 2px 8px rgba(23, 43, 77, 0.05);
-    }
+    }}
 
-    .yesco-metric-header {
+    .yesco-metric-header {{
         display: flex;
         align-items: center;
         gap: 8px;
         min-height: 22px;
-    }
+    }}
 
-    .yesco-metric-label {
+    .yesco-metric-label {{
         color: #5E6C84;
         font-size: 13px;
         font-weight: 600;
-        line-height: 1.3;
-    }
+    }}
 
-    .yesco-metric-value {
+    .yesco-metric-value {{
         color: #172B4D;
         font-size: 31px;
         font-weight: 750;
         line-height: 1.15;
         letter-spacing: -0.8px;
         white-space: nowrap;
-    }
+    }}
 
-    .yesco-metric-footer {
+    .yesco-metric-footer {{
         min-height: 20px;
         margin-top: 6px;
         font-size: 12px;
         line-height: 1.4;
-    }
+    }}
 
-    @media (max-width: 768px) {
-        .yesco-metric-card {
+    @media (max-width: 768px) {{
+        .yesco-metric-card {{
             min-height: 142px;
             height: 142px;
             padding: 16px;
-        }
+        }}
 
-        .yesco-metric-value {
+        .yesco-metric-value {{
             font-size: 27px;
-        }
-    }
+        }}
+    }}
 
-</style>
-"""
-
-
-def apply_global_styles():
-    """전역 CSS 적용 - app.py 최상단에서 호출"""
-    st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
 
 # ==================== Plotly 공통 설정 ====================
