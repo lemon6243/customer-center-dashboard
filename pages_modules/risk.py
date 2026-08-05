@@ -125,6 +125,13 @@ def _render_pace_risk(
                 predicted_score=row["예측점수"],
                 target=TARGET_SCORE,
             )
+            _render_improvement_actions(
+                df=df,
+                center_name=row["센터명"],
+                latest_row=row,
+                period_month=period_info["period_month"],
+            )
+
     else:
         st.success("🎉 예측 기준 895점 미만 위험 센터가 없습니다.")
 
