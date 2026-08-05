@@ -146,6 +146,15 @@ GLOBAL_CSS = f"""
         opacity: 0 !important;
     }}
 
+    /* 사이드바 라디오 원형 표시 숨김 */
+    [data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {{
+        display: none !important;
+    }}
+
+    [data-testid="stSidebar"] div[role="radiogroup"] label {{
+        padding-left: 14px !important;
+    }}
+
 
     .stAlert {{
         margin-top: 0.8rem;
