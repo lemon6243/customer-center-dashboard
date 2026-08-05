@@ -224,7 +224,13 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
         if is_final_month:
             _render_below_target_list(bottom_df, is_final_month, half_label)
         else:
+            pace_lag_df = get_pace_lag_ranking(
+                df,
+                n=5,
+                df_last_year=df_last_year,
+            )
             _render_pace_lag_list(pace_lag_df)
+
     
     else:
         col1, col2 = st.columns(2)
@@ -242,10 +248,15 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
     
         with col2:
             if is_final_month:
-                bottom_df = ranking.get("bottom", pd.DataFrame())
                 _render_below_target_list(bottom_df, is_final_month, half_label)
             else:
+                pace_lag_df = get_pace_lag_ranking(
+                    df,
+                    n=5,
+                    df_last_year=df_last_year,
+                )
                 _render_pace_lag_list(pace_lag_df)
+
 
         col1, col2 = st.columns(2)
         with col1:
@@ -986,7 +997,16 @@ def _render_half_outlook(
     st.markdown("")
 
     with st.expander("📋 센터별 반기 전망 상세 보기", expanded=False):
-        display_cols = ['센터명', '현재점수', '낙관전망', '현실전망', '목표차이', '안전도', '통합여부']
+        display_cols = [
+            '센터명',
+            '현재점수',
+            '현실전망',
+            '목표차이',
+            '안전도',
+            '전망근거',
+            '통합여부',
+        ]
+
         if '작년참고' in outlook.columns and outlook['작년참고'].notna().any():
             display_cols.insert(4, '작년참고')
         if '현재감점' in outlook.columns and (outlook['현재감점'].fillna(0) != 0).any():
@@ -1031,7 +1051,8 @@ def _render_half_outlook(
         )
 
         st.caption(
-            "💡 **현실 전망**: 최근 3개월 평균 페이스 유지 시 예상 점수 / "
+            "💡 **반기 전망**: 성과분석과 동일한 예측 로직을 적용합니다. "
+            "누적형 KPI는 반기 진행률로 환산하고, 비누적형 KPI는 현재 점수를 유지합니다. / "
             "**낙관 전망**: 911점 목표 페이스 달성 시 예상 점수 / "
             "**연간 pass**: 상+하반기 평균 911점 (반기 미달해도 다음 반기로 만회 가능) / "
             "**통합**: 4월 통합된 센터는 작년 직접 비교 제외"
