@@ -113,13 +113,13 @@ def _show_data_info(df: pd.DataFrame):
 
     st.info(
         f"""
-        📌 **데이터 현황**
-        - **데이터 기준월:** {latest_month.strftime('%Y년 %m월')}
-        - **최신월 대상 센터:** {latest_center_count}개
-        - **전체 평가 기간:** {min_month.strftime('%Y년 %m월')} ~ {latest_month.strftime('%Y년 %m월')}
-        - **전체 데이터:** {row_count:,}행 / {center_count}개 센터
-        - **데이터 파일 수정:** {file_modified}
-        """
+📌 **데이터 현황**
+- **데이터 기준월:** {latest_month.strftime('%Y년 %m월')}
+- **최신월 대상 센터:** {latest_center_count}개
+- **전체 평가 기간:** {min_month.strftime('%Y년 %m월')} ~ {latest_month.strftime('%Y년 %m월')}
+- **전체 데이터:** {row_count:,}행 / {center_count}개 센터
+- **데이터 파일 수정:** {file_modified}
+"""
     )
 
     # 최신월 데이터 누락 여부를 간단히 표시
@@ -127,6 +127,7 @@ def _show_data_info(df: pd.DataFrame):
         st.warning(
             f"⚠️ 최신월 센터 수가 전체 센터 수보다 {center_count - latest_center_count}개 적습니다."
         )
+
 
 
 
