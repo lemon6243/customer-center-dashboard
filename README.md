@@ -60,28 +60,4 @@
 
 ```bash
 python -m pytest -q
-<<<<<<< Updated upstream
 
-🚀 로컬 실행
-Python 3.11 환경을 권장합니다.
-
-python -m venv .venv
-Windows PowerShell:
-
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-streamlit run app.py
-⚙️ 관리자 데이터 품질 점검
-사이드바의 ⚙️ 관리자 메뉴에서 데이터 검증 결과를 확인할 수 있습니다.
-
-점검 항목:
-
-동일 센터·동일 평가월 중복
-KPI 비율값 형식 혼재
-센터별 월 데이터 누락
-반기 시작월 누적점수 리셋 이상 여부
-최신월 센터 누락 여부
-
-현재 README의 `911점 미달 센터 자동 추출` 문구는 진행월 정책과 맞지 않아, 위처럼 **반기말 예측 기반 위험관리**로 바꾸
-=======
->>>>>>> Stashed changes
