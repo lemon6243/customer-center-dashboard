@@ -199,16 +199,22 @@ def main():
             unsafe_allow_html=True
         )
         
-        # 초기 데이터 로드 (세션에 없으면)
-        if 'df' not in st.session_state or st.session_state.get('df') is None:
+        # 초기 데이터 상태 확인
+        df_current = st.session_state.get("df")
+        df_last_year = st.session_state.get("df_last_year")
+
+        # 세션에 데이터가 없을 때만 파일에서 로드
+        if df_current is None:
             with st.spinner("📊 데이터 로드 중..."):
                 df_current, df_last_year = load_latest_data_from_github()
-                
-                st.session_state['df'] = df_current
-                st.session_state['df_last_year'] = df_last_year  # ⭐ 작년 데이터 저장
-                
+
+                st.session_state["df"] = df_current
+                st.session_state["df_last_year"] = df_last_year
+
+        # 데이터가 없는 경우만 안내
         if df_current is None:
             st.info("💡 저장된 데이터가 없습니다. 사이드바에서 새 데이터를 업로드해주세요.")
+
 
         
         # ===== 사이드바 =====
