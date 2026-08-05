@@ -275,3 +275,59 @@ def _render_final_result(
                 ),
             },
         )
+def _render_improvement_actions(
+    df: pd.DataFrame,
+    center_name: str,
+    latest_row: pd.Series,
+    period_month: int,
+):
+    """위험센터의 KPI 개선 우선순위 표시"""
+
+    current_kpis = get_current_kpi_values(df, center_name)
+
+    if not current_kpis:
+        return
+
+    baseline_kpis = get_simulation_defaults(
+        current_kpis,
+        period_month,
+    )
+
+    adjustment = (
+        float(latest_row.get("민원대응적정성", 0) or 0)
+        + float(latest_row.get("주의경고", 0) or 0)
+        + float(latest_row.get("가점", 0) or 0)
+    )
+
+    actions = get_improvement_actions(
+        baseline_kpis=baseline_kpis,
+        adjustment=adjustment,
+        top_n=3,
+    )
+
+    if not actions:
+        return
+
+    with st.expander("🎯 911점 도달을 위한 우선 개선 항목", expanded=False):
+        rows = []
+
+        for idx, action in enumerate(actions, 1):
+            rows.append({
+                "우선순위": idx,
+                "KPI": action["KPI"],
+                "현재 페이스 전망": f'{action["현재전망"]:.1f}%',
+                "권장 목표": f'{action["목표값"]:.1f}%',
+                "필요 개선": f'+{action["필요상승"]:.1f}%p',
+                "예상 점수 효과": f'+{action["예상기여점수"]:.1f}점',
+            })
+
+        st.dataframe(
+            pd.DataFrame(rows),
+            hide_index=True,
+            use_container_width=True,
+        )
+
+        st.caption(
+            "※ 현재 페이스 기준 반기말 전망에서 911점 도달에 필요한 "
+            "최소 개선 조합을 제시합니다."
+        )
