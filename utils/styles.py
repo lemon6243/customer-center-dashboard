@@ -79,6 +79,16 @@ def get_score_grade(score: float) -> tuple:
 
 GLOBAL_CSS = f"""
 <style>
+    /* 메인 화면 상단 기본 여백 축소 */
+    .block-container {{
+        padding-top: 2.2rem !important;
+        padding-bottom: 2rem !important;
+    }}
+
+    header[data-testid="stHeader"] {{
+        height: 0 !important;
+    }}
+
     .main-header {{
         font-size: 2rem;
         font-weight: 700;
