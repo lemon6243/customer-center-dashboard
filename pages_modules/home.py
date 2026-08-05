@@ -82,6 +82,13 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
 
     _render_period_header(df, latest_month, is_final_month, half_label)
 
+    if is_half_start_month and df_prev is not None and not df_prev.empty:
+    st.caption(
+        "※ 전년 동월 총점 비교는 평가항목·배점 체계 변경 가능성으로 참고용입니다. "
+        "반기말 전망과 KPI별 지표를 함께 확인하세요."
+    )
+
+
      # ==================== 1. 핵심 KPI 카드 ====================
     st.markdown("### 📊 핵심 지표")
 
@@ -265,6 +272,10 @@ def show(df: pd.DataFrame, device_type: str = "desktop"):
     if df_prev is not None and not df_prev.empty:
         if is_half_start_month:
             st.markdown(f"##### 📊 전년 동월 대비 동향 (vs {prev_month})")
+            st.caption(
+                "※ 총점 변화는 참고용이며, KPI별 달성률·반기말 예측점수 중심으로 해석하세요."
+            )
+
         elif is_final_month:
             st.markdown(f"##### 📊 최종 월 대비 동향 (vs {prev_month})")
         else:
