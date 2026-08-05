@@ -295,7 +295,8 @@ def process_percentage_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def validate_cumulative_data(df: pd.DataFrame) -> tuple[bool, List[str]]:
+def validate_cumulative_data(df: pd.DataFrame) -> tuple[bool, List[str], List[str]]:
+
     """
     처리 완료 데이터 검증
 
@@ -425,11 +426,9 @@ def validate_cumulative_data(df: pd.DataFrame) -> tuple[bool, List[str]]:
                     "상반기/하반기 누적점수가 정상적으로 리셋되었는지 확인해주세요."
                 )
 
-    # 화면에 경고 출력
-    for warning in warnings:
-        st.warning(warning)
-
-    return len(errors) == 0, errors
+    # 화면에는 직접 출력하지 않음
+    # 관리자 화면에서만 별도로 표시
+    return len(errors) == 0, errors, warnings
 
 
 
