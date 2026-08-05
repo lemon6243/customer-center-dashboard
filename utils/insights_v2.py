@@ -721,46 +721,106 @@ def get_ranking_data(df_latest: pd.DataFrame, n: int = 5, mode: str = 'score') -
 
 
 def get_change_ranking(
-    df: pd.DataFrame, n: int = 5, df_last_year: Optional[pd.DataFrame] = None
+    df: pd.DataFrame,
+    n: int = 5,
+    df_last_year: Optional[pd.DataFrame] = None,
 ) -> Dict:
     """
-    1월/7월에는 작년 동월과 비교한다.
-    기존 호출(get_change_ranking(df))도 유지되며, 작년 데이터가 전달되지 않은
-    반기 시작월에는 빈 랭킹을 반환하여 6월/12월 오비교를 방지한다.
+    점수 변화 랭킹
+
+    - 1월/7월: 작년 동일 월 비교
+    - 그 외 월: 현재 반기 내 직전월 비교
     """
-    latest = _safe_latest_month(df)
-    if latest is None:
-        empty = pd.DataFrame()
-        return {'up': empty, 'down': empty, 'rising': empty, 'falling': empty}
+    empty = pd.DataFrame()
+    result_empty = {
+        'up': empty, 'down': empty,
+        'rising': empty, 'falling': empty,
+    }
 
-    months = pd.to_datetime(df['평가월'], errors='coerce').dropna().sort_values().unique()
-    prev = None if _is_half_start(latest) else (pd.Timestamp(months[-2]) if len(months) >= 2 else None)
-    df_l = _filter_by_month(df, latest)[['센터명', '총점']].copy()
-    df_p, comparison_label = _comparison_data(df, latest, prev, df_last_year)
-    if df_l.empty or df_p.empty or '총점' not in df_p.columns:
-        empty = pd.DataFrame()
-        return {'up': empty, 'down': empty, 'rising': empty, 'falling': empty}
+    if df is None or df.empty or '평가월' not in df.columns:
+        return result_empty
 
-    df_p = df_p[['센터명', '총점']].copy()
-    merged = df_l.rename(columns={'총점': '총점_현재'}).merge(
-        df_p.rename(columns={'총점': '총점_비교'}), on='센터명', how='inner'
-    )
+    work = df.copy()
+    work['_month_dt'] = pd.to_datetime(work['평가월'], errors='coerce')
+    work = work.dropna(subset=['_month_dt'])
+
+    if work.empty:
+        return result_empty
+
+    latest = work['_month_dt'].max()
+    latest_month_num = latest.month
+
+    # 최신월 데이터
+    df_l = work[
+        work['_month_dt'] == latest
+    ][['센터명', '총점']].copy()
+
+    if df_l.empty:
+        return result_empty
+
+    # 1월/7월: 작년 동월 비교
+    if latest_month_num in (1, 7):
+        if df_last_year is None or df_last_year.empty:
+            return result_empty
+
+        ly = df_last_year.copy()
+        ly['_month_dt'] = pd.to_datetime(ly['평가월'], errors='coerce')
+        ly = ly.dropna(subset=['_month_dt'])
+
+        df_p = ly[
+            ly['_month_dt'].dt.month == latest_month_num
+        ][['센터명', '총점']].copy()
+
+    # 그 외: 같은 반기 내 직전 월 비교
+    else:
+        same_year = work[work['_month_dt'].dt.year == latest.year].copy()
+
+        if latest_month_num <= 6:
+            same_half = same_year[same_year['_month_dt'].dt.month.between(1, 6)]
+        else:
+            same_half = same_year[same_year['_month_dt'].dt.month.between(7, 12)]
+
+        previous_dates = same_half[
+            same_half['_month_dt'] < latest
+        ]['_month_dt']
+
+        if previous_dates.empty:
+            return result_empty
+
+        prev = previous_dates.max()
+
+        df_p = same_half[
+            same_half['_month_dt'] == prev
+        ][['센터명', '총점']].copy()
+
+    if df_p.empty:
+        return result_empty
+
+    df_l = df_l.rename(columns={'총점': '총점_현재'})
+    df_p = df_p.rename(columns={'총점': '총점_비교'})
+
+    merged = df_l.merge(df_p, on='센터명', how='inner')
+
     if merged.empty:
-        empty = pd.DataFrame()
-        return {'up': empty, 'down': empty, 'rising': empty, 'falling': empty}
+        return result_empty
 
     merged['변화량'] = merged['총점_현재'] - merged['총점_비교']
     merged['총점'] = merged['총점_현재']
     merged['변화'] = merged['변화량']
     merged['점수변화'] = merged['변화량']
     merged['현재점수'] = merged['총점_현재']
-    merged['전월점수'] = merged['총점_비교']  # 기존 화면 호환용 컬럼명
-    merged['비교점수'] = merged['총점_비교']
-    merged['비교기준'] = comparison_label
+    merged['전월점수'] = merged['총점_비교']
 
     rising = merged.sort_values('변화량', ascending=False).head(n).reset_index(drop=True)
     falling = merged.sort_values('변화량', ascending=True).head(n).reset_index(drop=True)
-    return {'up': rising, 'down': falling, 'rising': rising, 'falling': falling}
+
+    return {
+        'up': rising,
+        'down': falling,
+        'rising': rising,
+        'falling': falling,
+    }
+
 
 
 def get_pace_lag_ranking(
