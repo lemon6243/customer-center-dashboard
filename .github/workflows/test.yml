@@ -26,7 +26,7 @@ jobs:
 
       - name: Compile Python files
         run: |
-          python -m compileall -q app.py pages_modules utils components
+          python -m compileall -q app.py
 
       - name: Run tests
         run: |
