@@ -24,20 +24,28 @@ export const App: React.FC = () => {
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [uploadToast, setUploadToast] = useState<string | null>(null);
 
-  // 사용 가능한 모든 평가월 목록 추출
+  // 사용 가능한 모든 평가월 목록 추출 (오름차순 정렬)
   const allAvailableMonths = useMemo(() => {
     const monthsSet = new Set(records.map(r => String(r.평가월 || '').substring(0, 7)));
     return Array.from(monthsSet).filter(Boolean).sort();
   }, [records]);
 
-  // 상반기 2개월차(2026-02)를 기본 선택으로 설정
-  const [selectedMonth, setSelectedMonth] = useState<string>('2026-02');
+  // 최신월 추출 (데이터셋의 가장 마지막 최신 월)
+  const latestMonth = useMemo(() => {
+    return allAvailableMonths.length > 0
+      ? allAvailableMonths[allAvailableMonths.length - 1]
+      : '2026-08';
+  }, [allAvailableMonths]);
+
+  // 사용자가 수동 선택한 월 (기본값 빈 문자열 -> 항상 최신월을 디폴트로 표시)
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
 
   const activeMonth = useMemo(() => {
-    if (allAvailableMonths.includes(selectedMonth)) return selectedMonth;
-    if (allAvailableMonths.includes('2026-02')) return '2026-02';
-    return allAvailableMonths[allAvailableMonths.length - 1] || '2026-02';
-  }, [selectedMonth, allAvailableMonths]);
+    if (selectedMonth && allAvailableMonths.includes(selectedMonth)) {
+      return selectedMonth;
+    }
+    return latestMonth;
+  }, [selectedMonth, allAvailableMonths, latestMonth]);
 
   const periodInfo = useMemo(() => {
     return getPeriodInfo(activeMonth + '-01');
@@ -90,7 +98,8 @@ export const App: React.FC = () => {
       });
 
       setRecords(parsedRecords);
-      setUploadToast(`성공적으로 ${parsedRecords.length}건의 데이터를 불러왔습니다.`);
+      setSelectedMonth('');
+      setUploadToast(`성공적으로 ${parsedRecords.length}건의 데이터를 불러왔습니다. (최신월 기준 반영)`);
       setTimeout(() => setUploadToast(null), 4000);
     } catch (err: any) {
       alert(`파일 처리 오류: ${err.message}`);
@@ -99,8 +108,8 @@ export const App: React.FC = () => {
 
   const handleResetData = () => {
     setRecords(initialScoredData);
-    setSelectedMonth('2026-02');
-    setUploadToast('기본 데이터셋으로 복원되었습니다.');
+    setSelectedMonth('');
+    setUploadToast('기본 데이터셋으로 복원되었습니다. (최신월 기준)');
     setTimeout(() => setUploadToast(null), 3000);
   };
 
@@ -144,9 +153,10 @@ export const App: React.FC = () => {
                   const isH1 = mNum <= 6;
                   const mInH = isH1 ? mNum : mNum - 6;
                   const halfName = isH1 ? '상반기' : '하반기';
+                  const isLatest = ym === latestMonth;
                   return (
-                    <option key={ym} value={ym} className="text-slate-900 bg-white">
-                      {y}년 {mNum}월 ({halfName} {mInH}개월차)
+                    <option key={ym} value={ym} className="text-slate-900 bg-white font-medium">
+                      {y}년 {mNum}월 ({halfName} {mInH}개월차){isLatest ? ' ★최신' : ''}
                     </option>
                   );
                 })}
