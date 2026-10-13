@@ -380,7 +380,7 @@ def get_score_badge(score):
 
 
 # -----------------------------------------------------------------------------
-# 3. 고신뢰성 다중 데이터 로더 (파일 업로드 + 로컬 파일 탐색 + 내장 백업)
+# 3. 고신뢰성 다중 데이터 로더 (순수 데이터 처리 캐싱 분리)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data_from_path(file_path):
@@ -391,23 +391,7 @@ def load_data_from_path(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
 
-def get_raw_records():
-    # 1. 사이드바 파일 업로더 우선 확인 (사용자가 직접 파일 업로드 가능)
-    uploaded = st.sidebar.file_uploader("📂 데이터 파일 업로드 (.xlsx / .json)", type=['xlsx', 'xls', 'json'], help="최신 엑셀 또는 JSON 데이터를 직접 업로드하여 분석할 수 있습니다.")
-    if uploaded is not None:
-        try:
-            if uploaded.name.endswith('.xlsx') or uploaded.name.endswith('.xls'):
-                df = pd.read_excel(uploaded)
-                st.sidebar.success(f"✅ 업로드 완료 ({len(df)}개 행)")
-                return df.to_dict(orient='records')
-            else:
-                data = json.load(uploaded)
-                st.sidebar.success(f"✅ 업로드 완료 ({len(data)}개 행)")
-                return data
-        except Exception as e:
-            st.sidebar.error(f"업로드 파일 파싱 실패: {e}")
-
-    # 2. 로컬 디렉토리 후보 경로 순차 검색
+def load_local_records():
     candidate_paths = [
         os.path.join(os.path.dirname(__file__), 'src', 'data', 'latest_data.json'),
         os.path.join(os.path.dirname(__file__), 'data', 'latest_data.json'),
@@ -427,8 +411,6 @@ def get_raw_records():
             except Exception:
                 continue
 
-    # 3. 최후 수단: 내장 샘플 데이터 (앱이 절대 죽지 않도록 방어)
-    st.sidebar.warning("⚠️ 로컬 데이터 파일이 없어 기본 데이터셋을 로드합니다.")
     centers = ["자양", "휘경", "중부", "구의", "금호", "동대문", "성동", "광진", "성수", "중랑", "면목", "상봉", "용산", "이태원", "한남", "마포", "공덕", "서대문", "종로", "은평"]
     sample_data = []
     for c in centers:
@@ -446,8 +428,16 @@ def get_raw_records():
     return sample_data
 
 @st.cache_data
-def load_and_process_all():
-    raw_list = get_raw_records()
+def parse_uploaded_bytes(file_bytes, filename):
+    import io
+    if filename.endswith('.xlsx') or filename.endswith('.xls'):
+        df = pd.read_excel(io.BytesIO(file_bytes))
+        return df.to_dict(orient='records')
+    else:
+        return json.loads(file_bytes.decode('utf-8'))
+
+@st.cache_data
+def process_dataframe(raw_list):
     df = pd.DataFrame(raw_list)
 
     # 날짜 정규화
@@ -537,7 +527,24 @@ def load_and_process_all():
     df[['전년동월_총점', '전년동월대비_증감', '전년반기말_총점', '도달판정', '오더진척상태']] = df.apply(enrich, axis=1)
     return df
 
-df_all = load_and_process_all()
+# 사이드바 상단 데이터 파일 업로더 (캐시 함수 밖에서 위젯 실행하여 CachedWidgetWarning 방지)
+uploaded_file = st.sidebar.file_uploader(
+    "📂 데이터 파일 업로드 (.xlsx / .json)",
+    type=['xlsx', 'xls', 'json'],
+    help="최신 엑셀 또는 JSON 데이터를 직접 업로드하여 분석할 수 있습니다."
+)
+
+if uploaded_file is not None:
+    try:
+        raw_records = parse_uploaded_bytes(uploaded_file.getvalue(), uploaded_file.name)
+        st.sidebar.success(f"✅ 업로드 파일 로드 완료 ({len(raw_records)}개 레코드)")
+    except Exception as e:
+        st.sidebar.error(f"업로드 파일 파싱 실패: {e}")
+        raw_records = load_local_records()
+else:
+    raw_records = load_local_records()
+
+df_all = process_dataframe(raw_records)
 
 
 # -----------------------------------------------------------------------------
