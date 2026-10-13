@@ -17,6 +17,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 import textwrap
 
+def render_html(html_str: str):
+    """HTML 문자열의 선행 들여쓰기를 제거하여 Markdown 코드블록 오인식 방지 및 안전한 렌더링 보장"""
+    dedented = textwrap.dedent(html_str).strip()
+    st.markdown(dedented, unsafe_allow_html=True)
+
 # -----------------------------------------------------------------------------
 # 1. 페이지 설정 및 디자인 시스템 (CSS)
 # -----------------------------------------------------------------------------
@@ -368,11 +373,6 @@ def predict_half_end_score(current_score, month, safety_score=None, non_cum_scor
         return round(min(1000.0, max(0.0, projected_total)), 1)
     return round((current_score * 0.85) + ((current_score / pace_ratio) * 0.15), 1)
 
-
-def render_html(html_str: str):
-    """HTML 문자열의 선행 들여쓰기를 제거하여 Markdown 코드블록 오인식 방지 및 안전한 렌더링 보장"""
-    dedented = textwrap.dedent(html_str).strip()
-    st.markdown(dedented, unsafe_allow_html=True)
 
 
 def generate_automated_insights(cur_df, df_all, month_in_half, target_end_text):
