@@ -1,0 +1,6 @@
+{
+  "name": "고객센터 성과 대시보드",
+  "description": "도시가스 고객센터의 월별 KPI, 반기 마감 전망, 위험센터 개선 우선순위를 분석하는 성과 대시보드",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

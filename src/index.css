@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  }
+}
+
+.yesco-header-banner {
+  background: linear-gradient(135deg, #073A7A 0%, #0B4EA2 60%, #1565C0 100%);
+}
+
+/* Print styling for PDF export of presentation slides */
+@media print {
+  aside, header, nav, .no-print {
+    display: none !important;
+  }
+  body, main {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .print-slide {
+    page-break-after: always;
+    break-after: page;
+    width: 100vw;
+    min-height: 100vh;
+    padding: 32px !important;
+    box-sizing: border-box;
+  }
+}
