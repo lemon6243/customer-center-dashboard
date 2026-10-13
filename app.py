@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 예스코 도시가스 고객센터 성과 대시보드 (Streamlit Application)
-- Streamlit Cloud 배포용 메인 모듈 (app.py)
-- 최신월 디폴트 자동 선택 및 AI Studio 비주얼 디자인 일체화
+- AI Studio React 프리뷰와 100% 동일한 고급 카드, 레이더 차트, 지표 테이블, 슬라이더 디자인 구현
 """
 import streamlit as st
 import pandas as pd
@@ -23,7 +22,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 럭셔리 비즈니스 UI (AI Studio 일체형 테마)
+# 럭셔리 비즈니스 UI (AI Studio 디자인과 100% 동일한 컬러 및 카드 스타일)
 st.markdown("""
 <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -35,10 +34,10 @@ st.markdown("""
     .yesco-header-banner {
         background: linear-gradient(135deg, #0B4EA2 0%, #073874 100%);
         color: white;
-        padding: 22px 28px;
-        border-radius: 14px;
-        margin-bottom: 22px;
-        box-shadow: 0 4px 16px rgba(11, 78, 162, 0.18);
+        padding: 20px 26px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 16px rgba(11, 78, 162, 0.15);
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -47,15 +46,15 @@ st.markdown("""
     }
     .header-title-box h1 {
         margin: 0;
-        font-size: 22px;
+        font-size: 21px;
         font-weight: 800;
         letter-spacing: -0.5px;
-        color: #FFFFFF;
+        color: #FFFFFF !important;
     }
     .header-title-box p {
         margin: 4px 0 0 0;
         font-size: 12px;
-        color: #DBEAFE;
+        color: #DBEAFE !important;
         opacity: 0.95;
     }
     .header-badge-box {
@@ -66,7 +65,7 @@ st.markdown("""
     .badge-pill-header {
         background: rgba(255, 255, 255, 0.18);
         border: 1px solid rgba(255, 255, 255, 0.3);
-        color: #FFFFFF;
+        color: #FFFFFF !important;
         padding: 6px 14px;
         border-radius: 20px;
         font-size: 12px;
@@ -77,62 +76,157 @@ st.markdown("""
     .banner-notice {
         background: #EFF6FF;
         border: 1px solid #BFDBFE;
-        border-radius: 12px;
-        padding: 14px 20px;
-        margin-bottom: 20px;
+        border-radius: 10px;
+        padding: 12px 18px;
+        margin-bottom: 18px;
         color: #1E3A8A;
-        font-size: 13px;
+        font-size: 12.5px;
         line-height: 1.6;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
     }
     
-    /* KPI Metric Cards */
+    /* Center Detail Header Card */
+    .center-header-card {
+        background: #FFFFFF;
+        border: 1px solid #DCE3EA;
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+    }
+    
+    .center-stat-pill {
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid #E2E8F0;
+        background: #F8FAFC;
+        text-align: center;
+        min-width: 100px;
+    }
+    .center-stat-pill.primary {
+        background: #EFF6FF;
+        border-color: #BFDBFE;
+    }
+    .center-stat-pill .label {
+        font-size: 10px;
+        font-weight: 600;
+        color: #5E6C84;
+        margin-bottom: 2px;
+    }
+    .center-stat-pill .val {
+        font-size: 16px;
+        font-weight: 800;
+        color: #0B4EA2;
+    }
+    
+    /* KPI Card Boxes */
+    .studio-card {
+        background: #FFFFFF;
+        border: 1px solid #DCE3EA;
+        border-radius: 12px;
+        padding: 18px 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        margin-bottom: 16px;
+    }
+    .studio-card-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #172B4D;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .studio-card-desc {
+        font-size: 11.5px;
+        color: #5E6C84;
+        margin-bottom: 14px;
+    }
+    
+    /* Custom Table Style */
+    .kpi-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    .kpi-table th {
+        background: #F8FAFC;
+        color: #5E6C84;
+        font-weight: 700;
+        padding: 9px 12px;
+        border-top: 1px solid #DCE3EA;
+        border-bottom: 1px solid #DCE3EA;
+        text-align: left;
+    }
+    .kpi-table td {
+        padding: 9px 12px;
+        border-bottom: 1px solid #EEF2F6;
+        color: #1E293B;
+    }
+    .kpi-table tr.total-row {
+        background: #F8FAFC;
+        font-weight: 800;
+    }
+    .kpi-table tr.total-row td {
+        border-top: 2px solid #CBD5E1;
+        border-bottom: 2px solid #CBD5E1;
+        color: #0B4EA2;
+    }
+    
+    /* Simulator Summary Bar */
+    .sim-result-bar {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+    
+    /* Metric Grid Cards for Home */
     .metric-grid-card {
         background: #FFFFFF;
         border: 1px solid #E2E8F0;
         border-radius: 12px;
-        padding: 18px 20px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        padding: 16px 18px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
         border-left: 4px solid #0B4EA2;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
+        margin-bottom: 14px;
     }
     .metric-title {
         font-size: 12px;
         font-weight: 700;
         color: #64748B;
-        margin-bottom: 6px;
+        margin-bottom: 4px;
         display: flex;
         align-items: center;
         justify-content: space-between;
     }
     .metric-value {
-        font-size: 26px;
+        font-size: 24px;
         font-weight: 800;
         color: #0F172A;
-        letter-spacing: -0.5px;
     }
     .metric-sub {
-        font-size: 11.5px;
-        margin-top: 6px;
+        font-size: 11px;
+        margin-top: 4px;
         font-weight: 600;
-        color: #0284C7;
-        display: flex;
-        align-items: center;
-        gap: 4px;
     }
     
     /* Insight Cards */
     .insight-card {
         background: #FFFFFF;
-        border-radius: 12px;
-        padding: 15px 20px;
+        border-radius: 10px;
+        padding: 14px 18px;
         margin-bottom: 12px;
         border: 1px solid #E2E8F0;
         border-left: 4px solid #0B4EA2;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
     }
     .insight-header {
         display: flex;
@@ -141,54 +235,27 @@ st.markdown("""
         margin-bottom: 6px;
     }
     .insight-title {
-        font-size: 13.5px;
+        font-size: 13px;
         font-weight: 700;
         color: #0F172A;
-        display: flex;
-        align-items: center;
-        gap: 6px;
     }
     .insight-body {
         font-size: 12px;
         color: #475569;
-        line-height: 1.55;
+        line-height: 1.5;
     }
     .insight-pill {
-        font-size: 10.5px;
+        font-size: 10px;
         font-weight: 700;
-        padding: 3px 10px;
+        padding: 2px 8px;
         border-radius: 12px;
     }
-    .insight-success {
-        border-left-color: #10B981;
-    }
-    .insight-success .insight-pill {
-        background: #DCFCE7;
-        color: #15803D;
-    }
-    .insight-warning {
-        border-left-color: #F59E0B;
-    }
-    .insight-warning .insight-pill {
-        background: #FEF3C7;
-        color: #B45309;
-    }
-    .insight-info {
-        border-left-color: #3B82F6;
-    }
-    .insight-info .insight-pill {
-        background: #DBEAFE;
-        color: #1D4ED8;
-    }
-    
-    /* Table Styling */
-    .styled-table-wrapper {
-        background: white;
-        border-radius: 12px;
-        border: 1px solid #E2E8F0;
-        padding: 14px;
-        margin-top: 10px;
-    }
+    .insight-success { border-left-color: #10B981; }
+    .insight-success .insight-pill { background: #DCFCE7; color: #15803D; }
+    .insight-warning { border-left-color: #F59E0B; }
+    .insight-warning .insight-pill { background: #FEF3C7; color: #B45309; }
+    .insight-info { border-left-color: #3B82F6; }
+    .insight-info .insight-pill { background: #DBEAFE; color: #1D4ED8; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -199,7 +266,6 @@ def normalize_date_string(val):
     if val is None or pd.isna(val):
         return '2026-08-01'
     if isinstance(val, (int, float)):
-        # Excel serial date
         if 30000 < val < 70000:
             dt = datetime(1899, 12, 30) + timedelta(days=float(val))
             return dt.strftime('%Y-%m-%d')
@@ -219,194 +285,178 @@ def normalize_date_string(val):
         return f"{y}-{m}-{d}"
     return '2026-08-01'
 
-def to_percentage(rate):
-    if rate is None or pd.isna(rate):
-        return 0.0
-    try:
-        num = float(rate)
-        if 0 <= num <= 1.05:
-            return num * 100.0
-        return num
-    except:
-        return 0.0
+def calc_contract_score(contract_rate):
+    if contract_rate >= 80:
+        return 50.0
+    elif contract_rate >= 75:
+        return 40.0
+    elif contract_rate >= 70:
+        return 30.0
+    elif contract_rate >= 60:
+        return 20.0
+    else:
+        return 10.0
 
-def calc_contract_score(rate):
-    p = to_percentage(rate)
-    if p >= 90.0: return 50.0
-    if p >= 80.0: return 45.0
-    if p >= 70.0: return 40.0
-    return 35.0
-
-def predict_half_end_score(current_score, month, safety_score, non_cumulative_score, key_score, adjust_score=0):
-    m = month if month <= 6 else month - 6
-    if m >= 6:
-        return round(current_score, 1)
-    pace_ratio = max(0.1, m / 6.0)
-    
-    projected_safety = min(550.0, safety_score / pace_ratio)
-    projected_key = min(100.0, key_score / pace_ratio)
-    projected_total = projected_safety + projected_key + non_cumulative_score + adjust_score
-    return round(min(1000.0, max(0.0, projected_total)), 1)
+def predict_half_end_score(total_score, cur_month, safety_score, non_cum_score, key_score):
+    month_in_half = cur_month if cur_month <= 6 else cur_month - 6
+    if month_in_half >= 6:
+        return total_score
+    rem_months = 6 - month_in_half
+    rem_safety_gain = max(0.0, 550.0 - safety_score)
+    step_safety = rem_safety_gain / rem_months if rem_months > 0 else 0.0
+    rem_key_gain = max(0.0, 100.0 - key_score)
+    step_key = rem_key_gain / rem_months if rem_months > 0 else 0.0
+    sim_pred = total_score + (step_safety * rem_months * 0.95) + (step_key * rem_months * 0.95)
+    return min(1000.0, sim_pred)
 
 @st.cache_data
 def load_all_records():
-    excel_path = 'data/latest_data.xlsx'
-    json_path = 'data/latest_data.json'
-    fallback_json = 'src/data/latest_data.json'
-    
-    raw_list = []
-    if os.path.exists(excel_path):
-        try:
-            df = pd.read_excel(excel_path)
-            raw_list = df.to_dict('records')
-        except Exception:
-            pass
-            
-    if not raw_list and os.path.exists(json_path):
-        try:
-            with open(json_path, 'r', encoding='utf-8') as f:
-                raw_list = json.load(f)
-        except Exception:
-            pass
-            
-    if not raw_list and os.path.exists(fallback_json):
-        try:
-            with open(fallback_json, 'r', encoding='utf-8') as f:
-                raw_list = json.load(f)
-        except Exception:
-            pass
+    json_path = os.path.join(os.path.dirname(__file__), 'src', 'data', 'latest_data.json')
+    if not os.path.exists(json_path):
+        json_path = 'src/data/latest_data.json'
+    if not os.path.exists(json_path):
+        st.error("데이터 파일(src/data/latest_data.json)을 찾을 수 없습니다.")
+        st.stop()
+    with open(json_path, 'r', encoding='utf-8') as f:
+        raw_data = json.load(f)
+    df = pd.DataFrame(raw_data)
+    df['정규평가월'] = df['평가월'].apply(normalize_date_string)
+    df['평가연월'] = df['정규평가월'].str.slice(0, 7)
+    df['연도'] = df['정규평가월'].apply(lambda x: int(x[:4]))
+    df['월'] = df['정규평가월'].apply(lambda x: int(x[5:7]))
+    df['반기'] = df['월'].apply(lambda m: '상반기' if m <= 6 else '하반기')
+    df['반기월차'] = df['월'].apply(lambda m: m if m <= 6 else m - 6)
 
-    if not raw_list:
-        return pd.DataFrame()
+    # 점수 산출
+    df['안전점검실점검율'] = pd.to_numeric(df.get('안전점검실점검율', 0), errors='coerce').fillna(0)
+    df['중점고객안전점검율'] = pd.to_numeric(df.get('중점고객안전점검율', 0), errors='coerce').fillna(0)
+    df['사용계약율'] = pd.to_numeric(df.get('사용계약율', 0), errors='coerce').fillna(0)
+    df['상담응대율'] = pd.to_numeric(df.get('상담응대율', 0), errors='coerce').fillna(0)
+    df['상담기여도'] = pd.to_numeric(df.get('상담기여도', 0), errors='coerce').fillna(0)
+    df['고객서비스만족도'] = pd.to_numeric(df.get('고객서비스만족도', 0), errors='coerce').fillna(0)
 
-    processed = []
-    for r in raw_list:
-        date_str = normalize_date_string(r.get('평가월'))
-        parts = date_str.split('-')
-        year = int(parts[0]) if len(parts) > 0 else 2026
-        month = int(parts[1]) if len(parts) > 1 else 8
-        half = '상반기' if month <= 6 else '하반기'
-        
-        safety_rate = to_percentage(r.get('안전점검실점검율'))
-        key_rate = to_percentage(r.get('중점고객안전점검율'))
-        contract_rate = to_percentage(r.get('사용계약율'))
-        response_rate = to_percentage(r.get('상담응대율'))
-        contrib_rate = to_percentage(r.get('상담기여도'))
-        sat_val = r.get('고객서비스만족도')
-        sat_rate = float(sat_val) if sat_val is not None and not pd.isna(sat_val) else 0.0
+    df['안전점검_점수'] = (df['안전점검실점검율'] / 100.0) * 550.0
+    df['중점고객_점수'] = (df['중점고객안전점검율'] / 100.0) * 100.0
+    df['사용계약_점수'] = df['사용계약율'].apply(calc_contract_score)
+    df['상담응대_점수'] = (df['상담응대율'] / 100.0) * 100.0
+    df['상담기여_점수'] = (df['상담기여도'] / 100.0) * 100.0
+    df['만족도_점수'] = df['고객서비스만족도']
 
-        safety_score = (safety_rate / 100.0) * 550.0
-        key_score = (key_rate / 100.0) * 100.0
-        contract_score = calc_contract_score(contract_rate)
-        resp_score = (response_rate / 100.0) * 100.0
-        contrib_score = (contrib_rate / 100.0) * 100.0
-        sat_score = sat_rate
-        
-        adjust = float(r.get('민원대응적정성', 0) or 0) + float(r.get('주의경고', 0) or 0) + float(r.get('가점', 0) or 0)
-        calc_total = safety_score + key_score + contract_score + resp_score + contrib_score + sat_score + adjust
-        
-        total_score = r.get('총점')
-        if total_score is None or pd.isna(total_score):
-            total_score = calc_total
+    df['총점'] = (
+        df['안전점검_점수'] +
+        df['중점고객_점수'] +
+        df['사용계약_점수'] +
+        df['상담응대_점수'] +
+        df['상담기여_점수'] +
+        df['만족도_점수']
+    )
+
+    # 반기말 예상 점수
+    def calc_pred(row):
+        non_cum = row['사용계약_점수'] + row['상담응대_점수'] + row['상담기여_점수'] + row['만족도_점수']
+        return predict_half_end_score(row['총점'], row['월'], row['안전점검_점수'], non_cum, row['중점고객_점수'])
+
+    df['예상반기총점'] = df.apply(calc_pred, axis=1)
+
+    # 911점 도달 판정
+    def get_status(pred):
+        if pred >= 911.0:
+            return '정상궤도'
+        elif pred >= 905.0:
+            return '주의'
         else:
-            total_score = float(total_score)
-            
-        non_cum = contract_score + resp_score + contrib_score + sat_score
-        pred_half = predict_half_end_score(total_score, month, safety_score, non_cum, key_score, adjust)
+            return '위험'
+    df['도달판정'] = df['예상반기총점'].apply(get_status)
 
-        processed.append({
-            '센터명': r.get('센터명', r.get('센터', '미상')),
-            '평가월': date_str,
-            '연도': year,
-            '월': month,
-            '반기': half,
-            '총점': round(total_score, 1),
-            '안전점검실점검율': round(safety_rate, 2),
-            '중점고객안전점검율': round(key_rate, 2),
-            '사용계약율': round(contract_rate, 2),
-            '상담응대율': round(response_rate, 2),
-            '상담기여도': round(contrib_rate, 2),
-            '고객서비스만족도': round(sat_rate, 2),
-            '안전점검_점수': round(safety_score, 1),
-            '중점고객_점수': round(key_score, 1),
-            '사용계약_점수': round(contract_score, 1),
-            '상담응대_점수': round(resp_score, 1),
-            '상담기여_점수': round(contrib_score, 1),
-            '만족도_점수': round(sat_score, 1),
-            '예상반기총점': pred_half
-        })
-        
-    df_all = pd.DataFrame(processed)
-    return df_all
+    return df
 
-# -----------------------------------------------------------------------------
-# 3. 데이터 로드 및 최신월 디폴트 설정
-# -----------------------------------------------------------------------------
 df_all = load_all_records()
 
-if df_all.empty:
-    st.error("데이터를 불러올 수 없습니다. data/latest_data.xlsx 또는 data/latest_data.json 파일을 확인해주세요.")
-    st.stop()
+# 전년 동월 및 전년 반기말 매핑
+def map_prior_year_data(df):
+    prior_map_same_month = {}
+    prior_map_half_end = {}
+    for _, r in df.iterrows():
+        c_name = r['센터명']
+        y = r['연도']
+        m = r['월']
+        key_sm = f"{c_name}_{y}_{m}"
+        prior_map_same_month[key_sm] = r['총점']
+        if m in [6, 12]:
+            half = '상반기' if m == 6 else '하반기'
+            key_he = f"{c_name}_{y}_{half}"
+            prior_map_half_end[key_he] = r['총점']
 
-# 사용 가능한 모든 월 목록 추출 (오름차순)
-all_months = sorted(list(df_all['평가월'].apply(lambda x: str(x)[:7]).unique()))
+    yoy_diffs = []
+    prev_totals = []
+    prev_half_ends = []
+    for _, r in df.iterrows():
+        c_name = r['센터명']
+        prev_y = r['연도'] - 1
+        m = r['월']
+        half = r['반기']
+        key_sm = f"{c_name}_{prev_y}_{m}"
+        key_he = f"{c_name}_{prev_y}_{half}"
+        prev_sc = prior_map_same_month.get(key_sm, None)
+        prev_totals.append(prev_sc)
+        if prev_sc is not None:
+            yoy_diffs.append(r['총점'] - prev_sc)
+        else:
+            yoy_diffs.append(None)
+        prev_he = prior_map_half_end.get(key_he, None)
+        prev_half_ends.append(prev_he)
 
-# 사용자 요청: "최신월을 디폴트로 해줘 새로고침하거나 새로 접속하면 항상 2026년 2월을 표기하네.."
-# -> 리스트의 가장 마지막 최신 월(len - 1)을 기본값으로 강제 지정
-default_latest_idx = len(all_months) - 1
+    df['전년동월_총점'] = prev_totals
+    df['전년동월대비_증감'] = yoy_diffs
+    df['전년반기말_총점'] = prev_half_ends
+    return df
 
-# 사이드바 설정
+df_all = map_prior_year_data(df_all)
+
+# -----------------------------------------------------------------------------
+# 3. 사이드바 네비게이션 및 평가월 선택 (최신월 자동 디폴트)
+# -----------------------------------------------------------------------------
+all_months = sorted(list(df_all['평가연월'].unique()))
+latest_month = all_months[-1] if all_months else "2026-08"
+
+# 사이드바 상단 로고 및 브랜딩
 st.sidebar.markdown("""
-<div style="display:flex; align-items:center; gap:8px; padding: 4px 0 12px 0;">
-    <div style="background:#0B4EA2; color:white; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:15px;">Y</div>
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid #E2E8F0;">
+    <div style="background:#0B4EA2; color:white; width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px;">
+        Y
+    </div>
     <div>
-        <div style="font-weight:800; font-size:14px; color:#0B4EA2;">예스코 고객센터</div>
+        <div style="font-size:14px; font-weight:800; color:#0B4EA2; line-height:1.2;">예스코 고객센터</div>
         <div style="font-size:11px; color:#64748B;">성과 평가 관리 시스템</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# 월 선택 드롭다운 (최신월에 [최신] 태그 표기 및 디폴트 인덱스)
-format_month = lambda ym: f"{ym[:4]}년 {int(ym[5:7])}월 ({'상반기' if int(ym[5:7])<=6 else '하반기'} {int(ym[5:7]) if int(ym[5:7])<=6 else int(ym[5:7])-6}개월차){' ★최신' if ym == all_months[-1] else ''}"
+# 최신월 기본 선택
+default_idx = len(all_months) - 1
+month_display_map = {m: f"{m} (★최신)" if m == latest_month else m for m in all_months}
 
 selected_month = st.sidebar.selectbox(
     "📅 평가월 선택",
-    all_months,
-    index=default_latest_idx,
-    format_func=format_month
+    options=all_months,
+    index=default_idx,
+    format_func=lambda m: month_display_map.get(m, m)
 )
 
-# 현재 선택 월 및 기간 정보 계산
-cur_df = df_all[df_all['평가월'].str.startswith(selected_month)].copy()
-cur_year = int(selected_month.split('-')[0])
-cur_month = int(selected_month.split('-')[1])
-month_in_half = cur_month if cur_month <= 6 else cur_month - 6
+# 현재 선택된 월 데이터 필터링
+cur_df = df_all[df_all['평가연월'] == selected_month].copy()
+if cur_df.empty:
+    cur_df = df_all.copy()
+
+cur_year = cur_df['연도'].iloc[0]
+cur_month = cur_df['월'].iloc[0]
 half_name = "상반기" if cur_month <= 6 else "하반기"
+month_in_half = cur_month if cur_month <= 6 else cur_month - 6
 target_end_text = "6월말" if cur_month <= 6 else "12월말"
-progress_pct = int((month_in_half / 6.0) * 100)
+progress_pct = int((month_in_half / 6) * 100)
+benchmark_safety = (month_in_half / 6) * 100.0
 
-# 전년 동월 데이터 매핑 (YoY)
-prev_year = cur_year - 1
-prev_df = df_all[(df_all['연도'] == prev_year) & (df_all['월'] == cur_month)].copy()
-prev_map = {r['센터명']: r['총점'] for _, r in prev_df.iterrows()}
-cur_df['전년동월_총점'] = cur_df['센터명'].map(prev_map)
-cur_df['전년동월대비_증감'] = cur_df['총점'] - cur_df['전년동월_총점']
-
-# 전년 반기말(6월말 or 12월말) 실적 매핑
-prev_half_end_month = 6 if cur_month <= 6 else 12
-prev_end_df = df_all[(df_all['연도'] == prev_year) & (df_all['월'] == prev_half_end_month)].copy()
-prev_end_map = {r['센터명']: r['총점'] for _, r in prev_end_df.iterrows()}
-cur_df['전년반기말_총점'] = cur_df['센터명'].map(prev_end_map)
-
-# 판정 로직
-benchmark_safety = (month_in_half / 6.0) * 92.0
-def get_track_status(pred):
-    if pred >= 911.0: return '정상궤도'
-    if pred >= 905.0: return '주의'
-    return '위험'
-cur_df['도달판정'] = cur_df['예상반기총점'].apply(get_track_status)
-
-# 네비게이션 메뉴
+# 네비게이션 메뉴 (AI Studio 사이드바 메뉴 100% 동일)
 menu = st.sidebar.radio(
     "메인 메뉴",
     ["🏠 홈", "📊 성과 분석", "🎯 센터 진단", "⚠️ 위험 관리", "🌡️ KPI 히트맵", "🔬 심화 분석", "📑 반기 보고"]
@@ -427,11 +477,6 @@ st.sidebar.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
-
-# 파일 업로더
-uploaded_file = st.sidebar.file_uploader("📥 신규 데이터 업로드 (.xlsx)", type=["xlsx", "xls"])
-if uploaded_file is not None:
-    st.sidebar.success("파일 업로드가 완료되었습니다.")
 
 # =============================================================================
 # 4. 공통 상단 헤더 배너
@@ -458,17 +503,15 @@ if menu == "🏠 홈":
     total_centers = len(cur_df)
     avg_score = cur_df['총점'].mean()
     
-    # 전년 동월 비교
     valid_yoy = cur_df['전년동월_총점'].dropna()
     prev_avg = valid_yoy.mean() if not valid_yoy.empty else None
     yoy_diff = (avg_score - prev_avg) if prev_avg is not None else None
-
-    # 911점 정상 궤도
+    
     on_track_count = len(cur_df[cur_df['예상반기총점'] >= 911.0])
     on_track_rate = (on_track_count / total_centers * 100) if total_centers > 0 else 0
     lag_centers = cur_df[(cur_df['전년동월대비_증감'] < -10) | (cur_df['예상반기총점'] < 905) | (cur_df['안전점검실점검율'] < benchmark_safety - 3)]
 
-    # 종합 진단 현황 배너 (사용자 최신 요청 문구)
+    # 종합 진단 현황 배너
     st.markdown(f"""
     <div class="banner-notice">
         <strong>💡 고객센터 종합 진단 현황 ({month_in_half}개월차)</strong><br/>
@@ -514,12 +557,10 @@ if menu == "🏠 홈":
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-    # 5대 핵심 인사이트 카드 (AI Studio insights.ts와 100% 동기화)
+    # 5대 핵심 인사이트 카드
     st.markdown("### 💡 핵심 인사이트 및 자동 진단")
-
-    # 1. 911점 도달 정상 궤도
     if on_track_count >= total_centers * 0.8:
         st.markdown(f"""
         <div class="insight-card insight-success">
@@ -546,35 +587,6 @@ if menu == "🏠 홈":
         </div>
         """, unsafe_allow_html=True)
 
-    # 2. 전년 동월(YoY) 비교
-    if yoy_diff is not None:
-        if yoy_diff >= 0:
-            top_gain = cur_df.sort_values(by="전년동월대비_증감", ascending=False).iloc[0]
-            st.markdown(f"""
-            <div class="insight-card insight-success">
-                <div class="insight-header">
-                    <span class="insight-title">📈 전년 동월 대비 종합 성과 상승</span>
-                    <span class="insight-pill">YoY +{yoy_diff:.1f}점</span>
-                </div>
-                <div class="insight-body">
-                    현재 {month_in_half}월차 평균 총점({avg_score:.1f}점)은 전년 동월({prev_avg:.1f}점) 대비 +{yoy_diff:.1f}점 상회하여 우수한 누적 흐름을 보이고 있습니다. 특히 {top_gain['센터명']} 센터가 전년 대비 +{top_gain['전년동월대비_증감']:.1f}점 상승하여 가장 두드러집니다.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="insight-card insight-warning">
-                <div class="insight-header">
-                    <span class="insight-title">⚠️ 전년 동월 대비 성과 지연 감지</span>
-                    <span class="insight-pill">YoY {yoy_diff:.1f}점</span>
-                </div>
-                <div class="insight-body">
-                    현재 {month_in_half}월차 평균 총점({avg_score:.1f}점)이 전년 동월({prev_avg:.1f}점) 대비 {yoy_diff:.1f}점 다소 뒤처져 있어, {target_end_text} 911점 달성을 위한 조기 오더 드라이브가 필요합니다.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    # 3. 안전점검 실점검율 진척 현황
     is_safety_good = avg_safety >= benchmark_safety - 3.0
     st.markdown(f"""
     <div class="insight-card {'insight-success' if is_safety_good else 'insight-info'}">
@@ -587,52 +599,6 @@ if menu == "🏠 홈":
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # 4. 코칭 대상 센터
-    if len(lag_centers) > 0:
-        lag_names = ", ".join(lag_centers['센터명'].head(3).tolist())
-        st.markdown(f"""
-        <div class="insight-card insight-warning">
-            <div class="insight-header">
-                <span class="insight-title">🚨 전년 동월 대비 누적 지연 센터 코칭 필요</span>
-                <span class="insight-pill">코칭 대상 {len(lag_centers)}개소</span>
-            </div>
-            <div class="insight-body">
-                {lag_names} 등 {len(lag_centers)}개 센터는 전년 동월 대비 오더 누적 페이스가 지연되고 있거나 {target_end_text} 911점 도달에 주의가 요구됩니다. 해당 센터의 원활한 오더 처리를 위한 맞춤형 현장 지원이 권장됩니다.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div class="insight-card insight-success">
-            <div class="insight-header">
-                <span class="insight-title">✅ 전 센터 누적 오더 정상 진척</span>
-                <span class="insight-pill">전체 순항</span>
-            </div>
-            <div class="insight-body">
-                모든 고객센터가 전년 동월 페이스를 상회하며 순조롭게 {target_end_text} 911점 달성 궤도에 안착해 있습니다.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # 5. 전년 반기말 실적 연계 911점 도달 진단
-    valid_prev_end = cur_df['전년반기말_총점'].dropna()
-    if not valid_prev_end.empty:
-        prev_end_avg = valid_prev_end.mean()
-        pred_avg = cur_df['예상반기총점'].mean()
-        st.markdown(f"""
-        <div class="insight-card insight-info">
-            <div class="insight-header">
-                <span class="insight-title">ℹ️ 전년 {target_end_text} 실적 연계 911점 도달 진단</span>
-                <span class="insight-pill">반기말 벤치마크</span>
-            </div>
-            <div class="insight-body">
-                전년도 {target_end_text} 최종 실적(평균 {prev_end_avg:.1f}점)을 벤치마크할 때, 현재 {month_in_half}개월차 추세 유지 시 센터별 평균 {target_end_text} 예상 점수는 {pred_avg:.1f}점으로 911점 목표선을 충분히 달성할 수 있습니다.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
 
     # 종합 순위 차트 & 테이블
     col_chart, col_rank = st.columns([3, 2])
@@ -679,7 +645,6 @@ if menu == "🏠 홈":
 elif menu == "📊 성과 분석":
     st.markdown("### 📊 지표별 세부 성과 및 월별 추이 분석")
     st.write(f"**기준 평가월**: {selected_month} | **분석 대상**: 총 {len(cur_df)}개 고객센터")
-
     tab1, tab2, tab3 = st.tabs(["📋 센터별 KPI 종합표", "📈 지표별 기여도", "📉 전년 대비(YoY) 비교"])
     with tab1:
         kpi_table = cur_df[['센터명', '총점', '예상반기총점', '도달판정', '안전점검실점검율', '중점고객안전점검율', '사용계약율', '상담응대율', '상담기여도', '고객서비스만족도']].copy()
@@ -693,14 +658,12 @@ elif menu == "📊 성과 분석":
             '상담기여도': '{:.1f}%',
             '고객서비스만족도': '{:.1f}점'
         }), use_container_width=True)
-
     with tab2:
         kpi_cols = ['안전점검_점수', '중점고객_점수', '사용계약_점수', '상담응대_점수', '상담기여_점수', '만족도_점수']
         avg_kpi = cur_df[kpi_cols].mean().reset_index()
         avg_kpi.columns = ['지표명', '평균 배점']
         fig_pie = px.pie(avg_kpi, names='지표명', values='평균 배점', color_discrete_sequence=px.colors.sequential.Blues_r)
         st.plotly_chart(fig_pie, use_container_width=True)
-
     with tab3:
         if '전년동월대비_증감' in cur_df.columns:
             fig_yoy = px.bar(
@@ -715,51 +678,269 @@ elif menu == "📊 성과 분석":
             st.plotly_chart(fig_yoy, use_container_width=True)
 
 # =============================================================================
-# PAGE 3: 🎯 센터 진단 & 시뮬레이터
+# PAGE 3: 🎯 센터 진단 (AI Studio CenterDetailPage 디자인과 100% 동일 구현)
 # =============================================================================
 elif menu == "🎯 센터 진단":
-    st.markdown("### 🎯 센터별 정밀 진단 및 911점 달성 시뮬레이터")
+    # 1. 상단 센터 선택 헤더
+    center_names = cur_df['센터명'].tolist()
     
-    sel_center = st.selectbox("진단할 고객센터를 선택하세요", cur_df['센터명'].unique())
+    # 센터 선택 박스 (레이블을 보기 좋게 서식화)
+    def center_format(c):
+        r = cur_df[cur_df['센터명'] == c].iloc[0]
+        return f"{c} 센터 ({r['총점']:.1f}점 | {target_end_text} 예상 {r['예상반기총점']:.1f}점)"
+
+    sel_center = st.selectbox(
+        "진단 센터 선택",
+        center_names,
+        format_func=center_format,
+        label_visibility="visible"
+    )
+    
     c_rec = cur_df[cur_df['센터명'] == sel_center].iloc[0]
+    
+    # 뱃지 색상 및 라벨 결정
+    is_interim = month_in_half < 6
+    check_score = c_rec['예상반기총점'] if is_interim else c_rec['총점']
+    if check_score >= 911.0:
+        badge_bg = "#DCFCE7"
+        badge_color = "#15803D"
+        badge_border = "#86EFAC"
+        badge_text = f"★ {target_end_text} 911점 달성 유력" if is_interim else "★ 911점 달성"
+    elif check_score >= 905.0:
+        badge_bg = "#FEF3C7"
+        badge_color = "#B45309"
+        badge_border = "#FCD34D"
+        badge_text = "▲ 주의 (페이스 보강)"
+    else:
+        badge_bg = "#FEE2E2"
+        badge_color = "#991B1B"
+        badge_border = "#FCA5A5"
+        badge_text = "● 위험 (집중 코칭)"
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("현재 총점", f"{c_rec['총점']:.1f}점")
-    col2.metric(f"{target_end_text} 예상총점", f"{c_rec['예상반기총점']:.1f}점")
-    col3.metric("911점 도달 판정", c_rec['도달판정'])
     yoy_val = c_rec['전년동월대비_증감']
-    col4.metric("전년 동월 대비", f"{'+' if yoy_val > 0 else ''}{yoy_val:.1f}점" if pd.notna(yoy_val) else "N/A")
+    yoy_str = f"{'+' if yoy_val > 0 else ''}{yoy_val:.1f}점" if pd.notna(yoy_val) else "-"
+    yoy_color = "#DC2626" if (pd.notna(yoy_val) and yoy_val < 0) else "#15803D"
+    
+    prev_half_str = f"{c_rec['전년반기말_총점']:.1f}점" if pd.notna(c_rec['전년반기말_총점']) else "-"
 
-    st.markdown("---")
-    st.markdown("#### 🛠️ 실시간 What-If 시뮬레이터 (반기 마감 911점 달성 목표 시뮬레이션)")
-    st.write("안전점검 실점검율 및 주요 KPI 개선 시 예상 총점 변화를 즉시 시뮬레이션합니다.")
+    # 센터 진단 헤더 카드
+    st.markdown(f"""
+    <div class="center-header-card">
+        <div style="font-size:16px; font-weight:800; color:#0B4EA2;">
+            🏢 {c_rec['센터명']} 고객센터 정밀 진단
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+            <div class="center-stat-pill">
+                <div class="label">당월({month_in_half}개월차) 누적 총점</div>
+                <div class="val" style="color:#0B4EA2;">{c_rec['총점']:.1f}점</div>
+            </div>
+            <div class="center-stat-pill primary">
+                <div class="label">{target_end_text} 예상 총점</div>
+                <div class="val" style="color:#1E40AF;">{c_rec['예상반기총점']:.1f}점</div>
+            </div>
+            <div class="center-stat-pill">
+                <div class="label">전년 동월 대비 (YoY)</div>
+                <div class="val" style="color:{yoy_color};">{yoy_str}</div>
+            </div>
+            <div class="center-stat-pill">
+                <div class="label">전년 {target_end_text} 실적</div>
+                <div class="val" style="color:#475569;">{prev_half_str}</div>
+            </div>
+            <div style="background:{badge_bg}; color:{badge_color}; border:1px solid {badge_border}; border-radius:8px; padding:8px 14px; font-size:12px; font-weight:800;">
+                {badge_text}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 안내 뱃지
+    order_status = "양호" if c_rec['안전점검실점검율'] >= benchmark_safety - 3 else "지연"
+    status_advice = "양호하게 추진 중입니다." if order_status == "양호" else "보강 관리가 필요합니다."
+    st.markdown(f"""
+    <div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:10px; padding:12px 18px; margin-bottom:18px; font-size:12px; color:#1E3A8A; display:flex; justify-content:space-between; align-items:center;">
+        <span>
+            ℹ️ <strong>평가 진척 안내:</strong> 현재 {month_in_half}개월차 기준 당 센터의 안전점검 실점검율은 <strong>{c_rec['안전점검실점검율']:.1f}%</strong>로 계획 대비 {status_advice} {target_end_text} 911점 예상 판정은 <strong>{c_rec['도달판정']}</strong> 상태입니다.
+        </span>
+        <span style="font-weight:800; color:#0B4EA2; background:#DBEAFE; padding:4px 10px; border-radius:6px; font-size:11px;">
+            진척 판정: {order_status}
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 2. 레이더 차트 & 지표별 세부 채점 테이블 (2열 레이아웃)
+    col_radar, col_table = st.columns([1, 1])
+
+    with col_radar:
+        st.markdown("""
+        <div class="studio-card-title"><span>🎯</span> 6대 핵심 KPI 진척 밸런스 레이더</div>
+        <div class="studio-card-desc">각 지표별 만점 대비 당월 달성률 현황 (안전점검 계열은 누적 진척도)</div>
+        """, unsafe_allow_html=True)
+        
+        # Plotly Radar Chart
+        categories = ['안전점검 (550)', '중점고객 (100)', '사용계약 (50)', '상담응대 (100)', '상담기여 (100)', '만족도 (100)']
+        values = [
+            c_rec['안전점검실점검율'],
+            c_rec['중점고객안전점검율'],
+            c_rec['사용계약율'],
+            c_rec['상담응대율'],
+            c_rec['상담기여도'],
+            c_rec['고객서비스만족도']
+        ]
+        # 레이더 차트 닫힘을 위해 첫 번째 값 추가
+        categories_closed = categories + [categories[0]]
+        values_closed = values + [values[0]]
+
+        fig_radar = go.Figure()
+        fig_radar.add_trace(go.Scatterpolar(
+            r=values_closed,
+            theta=categories_closed,
+            fill='toself',
+            name=c_rec['센터명'],
+            line_color='#0B4EA2',
+            fillcolor='rgba(11, 78, 162, 0.35)'
+        ))
+        fig_radar.update_layout(
+            polar=dict(
+                radialaxis=dict(visible=True, range=[0, 100], tickfont=dict(size=9, color="#64748B")),
+                angularaxis=dict(tickfont=dict(size=10, color="#172B4D", weight=700))
+            ),
+            showlegend=False,
+            height=320,
+            margin=dict(l=30, r=30, t=20, b=20),
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_radar, use_container_width=True)
+
+    with col_table:
+        st.markdown(f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <div class="studio-card-title"><span>📊</span> 지표별 세부 채점 및 성격 내역</div>
+            <span style="font-size:11px; color:#64748B;">{month_in_half}개월차 기준</span>
+        </div>
+        <div class="studio-card-desc">지표별 성격(누적형 vs 월별비율형) 및 배점 채점 결과</div>
+        """, unsafe_allow_html=True)
+
+        table_html = f"""
+        <table class="kpi-table">
+            <thead>
+                <tr>
+                    <th>평가 항목</th>
+                    <th>지표 성격</th>
+                    <th style="text-align:right;">배점</th>
+                    <th style="text-align:right;">당월 달성률</th>
+                    <th style="text-align:right;">획득 점수</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="font-weight:700;">안전점검실점검율</td>
+                    <td style="color:#0B4EA2; font-size:11px;">핵심 점검형</td>
+                    <td style="text-align:right; color:#64748B;">550점</td>
+                    <td style="text-align:right; font-weight:600;">{c_rec['안전점검실점검율']:.1f}%</td>
+                    <td style="text-align:right; font-weight:800; color:#0B4EA2;">{c_rec['안전점검_점수']:.1f}점</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700;">중점고객안전점검율</td>
+                    <td style="color:#0B4EA2; font-size:11px;">핵심 점검형</td>
+                    <td style="text-align:right; color:#64748B;">100점</td>
+                    <td style="text-align:right; font-weight:600;">{c_rec['중점고객안전점검율']:.1f}%</td>
+                    <td style="text-align:right; font-weight:800; color:#0B4EA2;">{c_rec['중점고객_점수']:.1f}점</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700;">사용계약율</td>
+                    <td style="color:#64748B; font-size:11px;">월별 비율 유지</td>
+                    <td style="text-align:right; color:#64748B;">50점</td>
+                    <td style="text-align:right; font-weight:600;">{c_rec['사용계약율']:.1f}%</td>
+                    <td style="text-align:right; font-weight:800; color:#0B4EA2;">{c_rec['사용계약_점수']:.1f}점</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700;">상담응대율</td>
+                    <td style="color:#64748B; font-size:11px;">월별 비율 유지</td>
+                    <td style="text-align:right; color:#64748B;">100점</td>
+                    <td style="text-align:right; font-weight:600;">{c_rec['상담응대율']:.1f}%</td>
+                    <td style="text-align:right; font-weight:800; color:#0B4EA2;">{c_rec['상담응대_점수']:.1f}점</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700;">상담기여도</td>
+                    <td style="color:#64748B; font-size:11px;">월별 비율 유지</td>
+                    <td style="text-align:right; color:#64748B;">100점</td>
+                    <td style="text-align:right; font-weight:600;">{c_rec['상담기여도']:.1f}%</td>
+                    <td style="text-align:right; font-weight:800; color:#0B4EA2;">{c_rec['상담기여_점수']:.1f}점</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:700;">고객서비스만족도</td>
+                    <td style="color:#64748B; font-size:11px;">조사 평가 유지</td>
+                    <td style="text-align:right; color:#64748B;">100점</td>
+                    <td style="text-align:right; font-weight:600;">{c_rec['고객서비스만족도']:.1f}점</td>
+                    <td style="text-align:right; font-weight:800; color:#0B4EA2;">{c_rec['만족도_점수']:.1f}점</td>
+                </tr>
+                <tr class="total-row">
+                    <td>합계 (현재 누적 총점)</td>
+                    <td style="color:#0B4EA2; font-size:11px;">{target_end_text} 예상 {c_rec['예상반기총점']:.1f}점</td>
+                    <td style="text-align:right; color:#64748B;">1,000점</td>
+                    <td style="text-align:right;">-</td>
+                    <td style="text-align:right; font-size:14px;">{c_rec['총점']:.1f}점</td>
+                </tr>
+            </tbody>
+        </table>
+        """
+        st.markdown(table_html, unsafe_allow_html=True)
+
+    # 3. What-If 시뮬레이터 (AI Studio CenterDetailPage와 100% 동일)
+    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="border-top:1px solid #DCE3EA; padding-top:18px;">
+        <div class="studio-card-title"><span>🔮</span> What-If 시뮬레이터: {c_rec['센터명']} 센터 {target_end_text} 911점 달성 전략 수립</div>
+        <div class="studio-card-desc">{target_end_text} 최종 누적 목표치를 슬라이더로 조율하여 911점 달성 여부와 추가 필요 점수를 즉시 시뮬레이션합니다.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 슬라이더 기본값 (React의 defaultSafety / defaultKey 반영)
+    def_safety = 94.0 if month_in_half < 6 else float(c_rec['안전점검실점검율'])
+    def_key = 95.0 if month_in_half < 6 else float(c_rec['중점고객안전점검율'])
 
     s_col1, s_col2, s_col3 = st.columns(3)
     with s_col1:
-        s_safety = st.slider("안전점검 실점검율 (%)", 0.0, 100.0, float(c_rec['안전점검실점검율']), 0.5)
-        s_key = st.slider("중점고객 안전점검율 (%)", 0.0, 100.0, float(c_rec['중점고객안전점검율']), 0.5)
+        sim_safety = st.slider(f"{target_end_text} 안전점검 목표치 (550점)", 70.0, 100.0, float(def_safety), 0.5, key="sim_s")
+        st.caption(f"당월 누적: {c_rec['안전점검실점검율']:.1f}% (권장 92% 이상)")
+        sim_key = st.slider(f"{target_end_text} 중점고객 목표치 (100점)", 60.0, 100.0, float(def_key), 0.5, key="sim_k")
+        st.caption(f"당월 누적: {c_rec['중점고객안전점검율']:.1f}% (권장 95% 이상)")
     with s_col2:
-        s_contract = st.slider("사용계약율 (%)", 50.0, 100.0, float(c_rec['사용계약율']), 0.5)
-        s_resp = st.slider("상담응대율 (%)", 50.0, 100.0, float(c_rec['상담응대율']), 0.5)
+        sim_contract = st.slider("사용계약율 (50점)", 60.0, 100.0, float(c_rec['사용계약율']), 1.0, key="sim_c")
+        sim_resp = st.slider("상담응대율 (100점)", 70.0, 100.0, float(c_rec['상담응대율']), 0.5, key="sim_r")
     with s_col3:
-        s_contrib = st.slider("상담기여도 (%)", 50.0, 100.0, float(c_rec['상담기여도']), 0.5)
-        s_sat = st.slider("고객서비스 만족도 (점)", 50.0, 100.0, float(c_rec['고객서비스만족도']), 0.5)
+        sim_contrib = st.slider("상담기여도 (100점)", 70.0, 100.0, float(c_rec['상담기여도']), 0.5, key="sim_cb")
+        sim_sat = st.slider("고객서비스 만족도 (100점)", 70.0, 100.0, float(c_rec['고객서비스만족도']), 0.5, key="sim_st")
 
-    sim_safety_sc = (s_safety / 100.0) * 550.0
-    sim_key_sc = (s_key / 100.0) * 100.0
-    sim_contract_sc = calc_contract_score(s_contract)
-    sim_resp_sc = (s_resp / 100.0) * 100.0
-    sim_contrib_sc = (s_contrib / 100.0) * 100.0
-    sim_sat_sc = s_sat
-    sim_non_cum = sim_contract_sc + sim_resp_sc + sim_contrib_sc + sim_sat_sc
-    sim_total = sim_safety_sc + sim_key_sc + sim_non_cum
-    sim_pred = predict_half_end_score(sim_total, cur_month, sim_safety_sc, sim_non_cum, sim_key_sc)
+    # 시뮬레이션 계산
+    sim_sc_safety = (sim_safety / 100.0) * 550.0
+    sim_sc_key = (sim_key / 100.0) * 100.0
+    sim_sc_contract = calc_contract_score(sim_contract)
+    sim_sc_resp = (sim_resp / 100.0) * 100.0
+    sim_sc_contrib = (sim_contrib / 100.0) * 100.0
+    sim_sc_sat = sim_sat
 
-    if sim_pred >= 911.0:
-        st.success(f"🎉 **시뮬레이션 결과**: 예상 총점 **{sim_pred:.1f}점**으로 **{target_end_text} 911점 목표를 안정적으로 달성**합니다!")
-    else:
-        gap = 911.0 - sim_pred
-        st.warning(f"⚠️ **시뮬레이션 결과**: 예상 총점 **{sim_pred:.1f}점**으로 911점 도달까지 **{gap:.1f}점 추가 보강**이 필요합니다.")
+    sim_total = sim_sc_safety + sim_sc_key + sim_sc_contract + sim_sc_resp + sim_sc_contrib + sim_sc_sat
+    is_passing = sim_total >= 911.0
+    gap = 911.0 - sim_total
+
+    # 시뮬레이션 결과 바
+    res_bg = "#DCFCE7" if is_passing else "#FEE2E2"
+    res_border = "#86EFAC" if is_passing else "#FCA5A5"
+    res_color = "#15803D" if is_passing else "#991B1B"
+    res_badge_text = "🎉 911점 달성 (합격)" if is_passing else f"⚠️ {abs(gap):.1f}점 보강 필요"
+
+    st.markdown(f"""
+    <div class="sim-result-bar">
+        <div>
+            <div style="font-size:11px; color:#5E6C84;">{target_end_text} 시뮬레이션 최종 총점</div>
+            <div style="font-size:22px; font-weight:800; color:#0B4EA2;">{sim_total:.1f}점</div>
+        </div>
+        <div style="background:{res_bg}; border:1px solid {res_border}; color:{res_color}; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:800;">
+            {res_badge_text}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # =============================================================================
 # PAGE 4: ⚠️ 위험 관리
