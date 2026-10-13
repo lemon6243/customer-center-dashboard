@@ -17,10 +17,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 import textwrap
 
-def render_html(html_str: str):
+def render_html(html_str: str, in_sidebar: bool = False):
     """HTML 문자열의 선행 들여쓰기를 제거하여 Markdown 코드블록 오인식 방지 및 안전한 렌더링 보장"""
     dedented = textwrap.dedent(html_str).strip()
-    st.markdown(dedented, unsafe_allow_html=True)
+    if in_sidebar:
+        st.sidebar.markdown(dedented, unsafe_allow_html=True)
+    else:
+        st.markdown(dedented, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
 # 1. 페이지 설정 및 디자인 시스템 (CSS)
@@ -583,24 +586,53 @@ def process_dataframe(raw_list):
     else:
         df['총점'] = calc_total
 
-    # 반기말 911점 예상 총점 산출
-    def get_pred(row):
-        non_cum = row['사용계약_점수'] + row['상담응대_점수'] + row['상담기여_점수'] + row['만족도_점수']
-        return predict_half_end_score(row['총점'], row['월'], row['안전점검_점수'], non_cum, row['중점고객_점수'])
-
-    df['예상반기총점'] = df.apply(get_pred, axis=1)
-
-    # 전년 동월 및 반기말 비교 벤치마크 생성
+    # 전년 동월 및 반기말 비교 벤치마크 맵 구축
     all_recs = df.to_dict(orient='records')
-    # 맵 구축
     yoy_map = {}
     py_half_end_map = {}
     for r in all_recs:
         key = (r['연도'], r['월'], r['센터명'])
         yoy_map[key] = r['총점']
-        # 전년 6월말 또는 12월말
         if r['월'] in [6, 12]:
             py_half_end_map[(r['연도'], r['월'], r['센터명'])] = r['총점']
+
+    def calc_realistic_projected_score(row):
+        """전년 동월 대비 누적 진척도(YoY) 및 전년 반기말(12월말/6월말) 실적 페이스를 연계한 고신뢰성 반기말 예상 점수 산출"""
+        cur_s = float(row['총점'])
+        m = row['반기월차']
+        if m >= 6:
+            return cur_s
+        
+        target_m = 6 if row['월'] <= 6 else 12
+        py_end = py_half_end_map.get((row['연도'] - 1, target_m, row['센터명']))
+        py_cur = yoy_map.get((row['연도'] - 1, row['월'], row['센터명']))
+        
+        # 기본 누적 진도율 비례 추정치
+        pace_ratio = max(0.1, m / 6.0)
+        non_cum = row['사용계약_점수'] + row['상담응대_점수'] + row['상담기여_점수'] + row['만족도_점수']
+        projected_safety = min(550.0, row['안전점검_점수'] / pace_ratio)
+        projected_key = min(100.0, row['중점고객_점수'] / pace_ratio)
+        base_extrapolation = projected_safety + projected_key + non_cum
+        
+        # 전년 반기말 실적 및 전년비 증감이 존재하는 경우 현실적인 전년 궤적 연계 예측 모델 적용
+        if py_end is not None and py_cur is not None:
+            yoy_d = cur_s - py_cur
+            # 전년 말 실적 기준에서 현재 지연/상승 페이스(yoy_d)를 직접 반영하여
+            # 전년 동월 대비 -24점 지연 시 전년 12월말(929점) 대비 하락한 현실적 예상치 산출
+            rem_weight = (6 - m) / 6.0
+            # 잔여 기간에 걸쳐 현재 페이스 유지 시 예상치 (회복 탄력성 고려 0.85)
+            yoy_trend_projected = py_end + (yoy_d * (0.8 + 0.2 * rem_weight))
+            
+            # 전년 페이스 연계 모델에 90% 가중치 부여 (과대평가 방지)
+            final_pred = (yoy_trend_projected * 0.90) + (base_extrapolation * 0.10)
+            return round(min(1000.0, max(0.0, final_pred)), 1)
+        elif py_end is not None:
+            # 전년 반기말 실적이 있으면 90% 가중치 반영
+            return round(min(1000.0, max(0.0, py_end * 0.90 + base_extrapolation * 0.10)), 1)
+        
+        return round(min(1000.0, max(0.0, base_extrapolation)), 1)
+
+    df['예상반기총점'] = df.apply(calc_realistic_projected_score, axis=1)
 
     def enrich(row):
         py = yoy_map.get((row['연도'] - 1, row['월'], row['센터명']))
@@ -672,7 +704,7 @@ render_html("""
         <div style="font-size:11px; color:#64748B;">성과 평가 관리 시스템</div>
     </div>
 </div>
-""")
+""", in_sidebar=True)
 
 # 2) 메인 메뉴 (Studio 프리뷰와 100% 동일한 메뉴명 & 아이콘)
 menu = st.sidebar.radio(
@@ -723,7 +755,7 @@ render_html(f"""
         <span>전체 레코드:</span> <span>{len(df_all):,}건</span>
     </div>
 </div>
-""")
+""", in_sidebar=True)
 
 # 5) 사이드바 하단 배점 규칙 모달 안내 버튼
 with st.sidebar.expander("⚖️ 배점 규칙 & 기준 안내", expanded=False):
@@ -1059,45 +1091,37 @@ elif menu == "📊 성과 분석":
     table_rows = []
     for rank, (_, r) in enumerate(sorted_table.iterrows(), start=1):
         g, cls, desc = get_score_badge(r['총점'])
-        table_rows.append(f"""
-        <tr>
-            <td style="font-weight:700; color:#64748B;">{rank}</td>
-            <td style="font-weight:800; color:#1E293B;">{r['센터명']}</td>
-            <td style="text-align:right; font-weight:800; color:#0B4EA2;">{r['총점']:.1f}</td>
-            <td style="text-align:center;"><span class="score-badge {cls}">{g}등급 ({desc})</span></td>
-            <td style="text-align:right; color:#475569;">{r['안전점검_점수']:.1f} <span style="font-size:10px; color:#94A3B8;">({r['안전점검실점검율']:.0f}%)</span></td>
-            <td style="text-align:right; color:#475569;">{r['중점고객_점수']:.1f} <span style="font-size:10px; color:#94A3B8;">({r['중점고객안전점검율']:.0f}%)</span></td>
-            <td style="text-align:right; color:#475569;">{r['사용계약_점수']:.1f}</td>
-            <td style="text-align:right; color:#475569;">{r['상담응대_점수']:.1f}</td>
-            <td style="text-align:right; color:#475569;">{r['상담기여_점수']:.1f}</td>
-            <td style="text-align:right; color:#475569;">{r['만족도_점수']:.1f}</td>
-        </tr>
-        """)
+        row_html = (
+            f'<tr>'
+            f'<td style="font-weight:700; color:#64748B;">{rank}</td>'
+            f'<td style="font-weight:800; color:#1E293B;">{r["센터명"]}</td>'
+            f'<td style="text-align:right; font-weight:800; color:#0B4EA2;">{r["총점"]:.1f}</td>'
+            f'<td style="text-align:center;"><span class="score-badge {cls}">{g}등급 ({desc})</span></td>'
+            f'<td style="text-align:right; color:#475569;">{r["안전점검_점수"]:.1f} <span style="font-size:10px; color:#94A3B8;">({r["안전점검실점검율"]:.0f}%)</span></td>'
+            f'<td style="text-align:right; color:#475569;">{r["중점고객_점수"]:.1f} <span style="font-size:10px; color:#94A3B8;">({r["중점고객안전점검율"]:.0f}%)</span></td>'
+            f'<td style="text-align:right; color:#475569;">{r["사용계약_점수"]:.1f}</td>'
+            f'<td style="text-align:right; color:#475569;">{r["상담응대_점수"]:.1f}</td>'
+            f'<td style="text-align:right; color:#475569;">{r["상담기여_점수"]:.1f}</td>'
+            f'<td style="text-align:right; color:#475569;">{r["만족도_점수"]:.1f}</td>'
+            f'</tr>'
+        )
+        table_rows.append(row_html)
 
-    full_html_table = f"""
-    <div style="overflow-x:auto; border:1px solid #E2E8F0; border-radius:10px; background:white;">
-        <table class="studio-table">
-            <thead>
-                <tr>
-                    <th>순위</th>
-                    <th>센터명</th>
-                    <th style="text-align:right;">총점</th>
-                    <th style="text-align:center;">평가상태</th>
-                    <th style="text-align:right;">안전점검 (550)</th>
-                    <th style="text-align:right;">중점고객 (100)</th>
-                    <th style="text-align:right;">사용계약 (50)</th>
-                    <th style="text-align:right;">상담응대 (100)</th>
-                    <th style="text-align:right;">상담기여 (100)</th>
-                    <th style="text-align:right;">만족도 (100)</th>
-                </tr>
-            </thead>
-            <tbody>
-                {''.join(table_rows)}
-            </tbody>
-        </table>
-    </div>
-    """
-    render_html(full_html_table)
+    tbody_content = "".join(table_rows)
+    full_html_table = (
+        '<div style="overflow-x:auto; border:1px solid #E2E8F0; border-radius:10px; background:white;">'
+        '<table class="studio-table">'
+        '<thead><tr>'
+        '<th>순위</th><th>센터명</th><th style="text-align:right;">총점</th><th style="text-align:center;">평가상태</th>'
+        '<th style="text-align:right;">안전점검 (550)</th><th style="text-align:right;">중점고객 (100)</th>'
+        '<th style="text-align:right;">사용계약 (50)</th><th style="text-align:right;">상담응대 (100)</th>'
+        '<th style="text-align:right;">상담기여 (100)</th><th style="text-align:right;">만족도 (100)</th>'
+        '</tr></thead>'
+        f'<tbody>{tbody_content}</tbody>'
+        '</table>'
+        '</div>'
+    )
+    st.markdown(full_html_table, unsafe_allow_html=True)
 
 
 # =============================================================================
