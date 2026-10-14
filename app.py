@@ -597,39 +597,33 @@ def process_dataframe(raw_list):
             py_half_end_map[(r['연도'], r['월'], r['센터명'])] = r['총점']
 
     def calc_realistic_projected_score(row):
-        """전년 동월 대비 누적 진척도(YoY) 및 전년 반기말(12월말/6월말) 실적 페이스를 연계한 고신뢰성 반기말 예상 점수 산출"""
+        """전년 12월말(또는 6월말) 실적 및 전년 동월 대비 누적 증감(YoY) 페이스를 100% 기준으로 하는 직관적/고신뢰성 예측 모델"""
         cur_s = float(row['총점'])
         m = row['반기월차']
         if m >= 6:
-            return cur_s
+            return round(cur_s, 1)
         
         target_m = 6 if row['월'] <= 6 else 12
         py_end = py_half_end_map.get((row['연도'] - 1, target_m, row['센터명']))
         py_cur = yoy_map.get((row['연도'] - 1, row['월'], row['센터명']))
         
-        # 기본 누적 진도율 비례 추정치
+        # 1순위: 전년 12월말 실적(py_end)과 전년 동월 대비 증감(yoy_d)이 있는 경우
+        # 예: 용산센터 (전년 12월말 929.4점, 전년 8월대비 -24.1점) -> 12월말 예상 = 929.4 - 24.1 = 905.3점 (미달 위험)
+        if py_end is not None and py_cur is not None:
+            yoy_d = cur_s - py_cur
+            predicted = py_end + yoy_d
+            return round(min(1000.0, max(0.0, predicted)), 1)
+        
+        # 2순위: 전년 반기말 실적만 있는 경우
+        if py_end is not None:
+            return round(min(1000.0, max(0.0, py_end)), 1)
+        
+        # 3순위: 신규 센터 등 전년 벤치마크가 없는 경우 진도율 기반 추정
         pace_ratio = max(0.1, m / 6.0)
         non_cum = row['사용계약_점수'] + row['상담응대_점수'] + row['상담기여_점수'] + row['만족도_점수']
         projected_safety = min(550.0, row['안전점검_점수'] / pace_ratio)
         projected_key = min(100.0, row['중점고객_점수'] / pace_ratio)
         base_extrapolation = projected_safety + projected_key + non_cum
-        
-        # 전년 반기말 실적 및 전년비 증감이 존재하는 경우 현실적인 전년 궤적 연계 예측 모델 적용
-        if py_end is not None and py_cur is not None:
-            yoy_d = cur_s - py_cur
-            # 전년 말 실적 기준에서 현재 지연/상승 페이스(yoy_d)를 직접 반영하여
-            # 전년 동월 대비 -24점 지연 시 전년 12월말(929점) 대비 하락한 현실적 예상치 산출
-            rem_weight = (6 - m) / 6.0
-            # 잔여 기간에 걸쳐 현재 페이스 유지 시 예상치 (회복 탄력성 고려 0.85)
-            yoy_trend_projected = py_end + (yoy_d * (0.8 + 0.2 * rem_weight))
-            
-            # 전년 페이스 연계 모델에 90% 가중치 부여 (과대평가 방지)
-            final_pred = (yoy_trend_projected * 0.90) + (base_extrapolation * 0.10)
-            return round(min(1000.0, max(0.0, final_pred)), 1)
-        elif py_end is not None:
-            # 전년 반기말 실적이 있으면 90% 가중치 반영
-            return round(min(1000.0, max(0.0, py_end * 0.90 + base_extrapolation * 0.10)), 1)
-        
         return round(min(1000.0, max(0.0, base_extrapolation)), 1)
 
     df['예상반기총점'] = df.apply(calc_realistic_projected_score, axis=1)

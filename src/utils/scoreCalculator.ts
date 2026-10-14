@@ -237,10 +237,20 @@ export function enrichRecordsWithYoYAndBenchmark(
     const yoyDiff = py ? rec.총점 - py.총점 : null;
     const momDiff = pm ? rec.총점 - pm.총점 : null;
 
+    // 전년 12월말(또는 6월말) 실적과 전년 동월 대비 증감을 100% 기준으로 연계 예측
+    let updatedExpectedHalf = rec.예상반기총점;
+    if (periodInfo.month_in_half < 6) {
+      if (pyEnd && yoyDiff !== null) {
+        updatedExpectedHalf = Math.round(Math.min(1000, Math.max(0, pyEnd.총점 + yoyDiff)) * 10) / 10;
+      } else if (pyEnd) {
+        updatedExpectedHalf = Math.round(pyEnd.총점 * 10) / 10;
+      }
+    }
+
     let 도달판정: '정상궤도' | '주의' | '위험' = '정상궤도';
-    if (rec.예상반기총점 < 905) {
+    if (updatedExpectedHalf < 905) {
       도달판정 = '위험';
-    } else if (rec.예상반기총점 < 915) {
+    } else if (updatedExpectedHalf < 915) {
       도달판정 = '주의';
     }
 
@@ -258,6 +268,7 @@ export function enrichRecordsWithYoYAndBenchmark(
       전년동월_안전점검달성률: py ? py.안전점검_달성률 : null,
       전년동월대비_증감: yoyDiff,
       전년반기말_총점: pyEnd ? pyEnd.총점 : null,
+      예상반기총점: updatedExpectedHalf,
       도달판정,
       오더진척상태,
     };
