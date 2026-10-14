@@ -167,7 +167,8 @@ export const PerformancePage: React.FC<PerformancePageProps> = ({
             </thead>
             <tbody className="divide-y divide-[#EEF2F6]">
               {sortedRecords.map((r, i) => {
-                const badge = getScoreBadge(r.총점);
+                const isInterim = periodInfo.month_in_half < 6;
+                const badge = getScoreBadge(r.총점, r.예상반기총점, isInterim);
                 return (
                   <tr key={r.센터명} className="hover:bg-slate-50 transition-colors">
                     <td className="py-2.5 px-3 font-bold text-gray-500">{i + 1}</td>
