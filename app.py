@@ -1589,64 +1589,143 @@ elif menu == "🔬 심화 분석":
 # PAGE 7: 📑 반기 보고 (Studio HalfReportPage.tsx 100% 동일)
 # =============================================================================
 elif menu in ["📑 상반기 보고", "📑 반기 보고"]:
-    render_html(f"""
-    <div class="yesco-header-banner" style="background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);">
+    # 2026년 상반기 마감(2026년 6월) 실적 데이터 자동 필터링 (Studio HalfReportPage.tsx 100% 동일)
+    h1_df = df_all[df_all['평가연월'] == '2026-06'].copy()
+    if h1_df.empty:
+        h1_df = df_all[(df_all['연도'] == 2026) & (df_all['월'] <= 6)].sort_values('월').groupby('센터명').last().reset_index()
+
+    h1_total_centers = len(h1_df)
+    h1_avg_score = h1_df['총점'].mean() if not h1_df.empty else 0.0
+    h1_pass_count = len(h1_df[h1_df['총점'] >= 911.0])
+    h1_pass_rate = (h1_pass_count / h1_total_centers * 100) if h1_total_centers > 0 else 0.0
+
+    # 2025년 상반기(2025년 6월) 실적 비교
+    last_year_h1 = df_all[df_all['평가연월'] == '2025-06'].copy()
+    last_year_avg = last_year_h1['총점'].mean() if not last_year_h1.empty else None
+    h1_yoy_diff = (h1_avg_score - last_year_avg) if last_year_avg is not None else None
+
+    # 상단 배너 헤더
+    render_html("""
+    <div class="yesco-header-banner" style="background: linear-gradient(135deg, #0B4EA2 0%, #073874 100%);">
         <div class="header-title-box">
-            <h1>📑 {cur_year}년 {half_name} 고객센터 성과 종합 리포트</h1>
-            <p>경영진 및 고객서비스본부 제출용 공식 성과 평가 총괄 분석표</p>
+            <h1>📑 2026년 상반기 고객센터 종합 평가 결과 리포트</h1>
+            <p>2026년 상반기(1~6월) 마감 실적 및 전년(2025년) 상반기 대비 증감 총괄 분석표 (공식 보고용)</p>
         </div>
         <div class="header-badge-box">
-            <span class="badge-pill-header" style="background:#0B4EA2;">{half_name} 마감 기준</span>
+            <span class="badge-pill-header" style="background:#FFFFFF; color:#0B4EA2;">2026년 6월말 마감 확정</span>
+            <span class="badge-pill-header">기준 목표: 911.0점</span>
         </div>
     </div>
     """)
 
-    h_col1, h_col2, h_col3 = st.columns(3)
-    with h_col1:
+    # 3대 핵심 지표 카드 (Studio HalfReportPage.tsx 1:1)
+    rep_c1, rep_c2, rep_c3 = st.columns(3)
+    with rep_c1:
+        yoy_text = f"전년 대비 {'+' if (h1_yoy_diff or 0) >= 0 else ''}{(h1_yoy_diff or 0):.1f}점" if h1_yoy_diff is not None else "기준 목표 911점"
+        yoy_col = "#15803D" if (h1_yoy_diff or 0) >= 0 else "#DC2626"
         render_html(f"""
         <div class="metric-grid-card" style="border-left-color: #0B4EA2;">
-            <div class="metric-title"><span>평가 센터 현황</span> <span>🏢</span></div>
-            <div class="metric-value">{len(cur_df)}개소</div>
-            <div class="metric-sub">{half_name} {month_in_half}개월차 누적 평가</div>
+            <div class="metric-title"><span>상반기 평균 총점</span> <span>📊</span></div>
+            <div class="metric-value">{h1_avg_score:.1f}점</div>
+            <div class="metric-sub" style="color: {yoy_col}; font-weight:700;">{yoy_text}</div>
         </div>
         """)
-    with h_col2:
+    with rep_c2:
         render_html(f"""
         <div class="metric-grid-card" style="border-left-color: #10B981;">
-            <div class="metric-title"><span>{target_end_text} 911점 달성 유력율</span> <span>🎯</span></div>
-            <div class="metric-value">{on_track_rate:.1f}%</div>
-            <div class="metric-sub">{total_centers}개 센터 중 {on_track_count}개소 궤도 안착</div>
+            <div class="metric-title"><span>911점 달성률</span> <span>🎯</span></div>
+            <div class="metric-value" style="color: #15803D;">{h1_pass_rate:.1f}%</div>
+            <div class="metric-sub" style="color: #15803D;">{h1_pass_count}개 센터 달성 / 총 {h1_total_centers}개소</div>
         </div>
         """)
-    with h_col3:
+    with rep_c3:
+        fail_count = h1_total_centers - h1_pass_count
         render_html(f"""
-        <div class="metric-grid-card" style="border-left-color: #6366F1;">
-            <div class="metric-title"><span>전체 평균 총점</span> <span>📊</span></div>
-            <div class="metric-value">{cur_df['총점'].mean():.1f}점</div>
-            <div class="metric-sub">{target_end_text} 예상 평균 {cur_df['예상반기총점'].mean():.1f}점</div>
+        <div class="metric-grid-card" style="border-left-color: #F59E0B;">
+            <div class="metric-title"><span>미달 센터 현황</span> <span>⚠️</span></div>
+            <div class="metric-value" style="color: #D97706;">{fail_count}개소</div>
+            <div class="metric-sub">하반기 재계약 보강 관리 대상</div>
         </div>
         """)
 
-    st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
-    st.markdown("### 📋 고객센터 종합 평가 및 반기말 전망 총괄표")
+    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
+    # 권역 조정 및 센터 통합 안내 알림창 (Studio 1:1)
+    render_html("""
+    <div style="background:#FFFDF5; border:1px solid #FDE68A; border-radius:10px; padding:12px 16px; margin-bottom:18px; font-size:12px; color:#92400E; line-height:1.6;">
+        <strong style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+            <span>ℹ️</span> 권역 조정 및 센터 통합 안내
+        </strong>
+        <div>• <strong>퇴계원/별내</strong>: 2026년 통합 운영 센터로 단일 실적으로 평가되었습니다.</div>
+        <div>• <strong>구리</strong>: 2026년 4월 권역조정으로 행정동을 흡수하였으나, 안전점검은 기존 관리세대 기준으로 공정하게 평가되었습니다.</div>
+    </div>
+    """)
+
+    # 센터별 2026년 상반기 평가 종합 순위 테이블 (Studio 1:1)
+    st.markdown("#### 🏢 센터별 2026년 상반기 평가 종합 순위 (마감 실적)")
+
+    sorted_h1 = h1_df.sort_values(by="총점", ascending=False).copy()
+    h1_table_rows = []
     
-    export_df = cur_df.sort_values(by="총점", ascending=False)[
-        ['센터명', '총점', '예상반기총점', '도달판정', '전년동월대비_증감', '안전점검실점검율', '중점고객안전점검율', '사용계약율', '상담응대율', '상담기여도', '고객서비스만족도']
-    ].copy()
+    last_year_map = {r['센터명']: r['총점'] for _, r in last_year_h1.iterrows()} if not last_year_h1.empty else {}
+
+    for rank, (_, r) in enumerate(sorted_h1.iterrows(), start=1):
+        g, cls, desc = get_score_badge(r['총점'])
+        target_gap = r['총점'] - 911.0
+        gap_col = "#15803D" if target_gap >= 0 else "#991B1B"
+        gap_txt = f"{'+' if target_gap >= 0 else ''}{target_gap:.1f}"
+
+        ly_score = last_year_map.get(r['센터명'])
+        if ly_score is not None:
+            diff_val = r['총점'] - ly_score
+            diff_col = "#15803D" if diff_val >= 0 else "#991B1B"
+            diff_txt = f"{'+' if diff_val >= 0 else ''}{diff_val:.1f}"
+        else:
+            diff_col = "#94A3B8"
+            diff_txt = "-"
+
+        row_html = (
+            f'<tr>'
+            f'<td style="font-weight:700; color:#64748B;">{rank}</td>'
+            f'<td style="font-weight:800; color:#1E293B;">{r["센터명"]}</td>'
+            f'<td style="text-align:right; font-weight:800; color:#0B4EA2;">{r["총점"]:.1f}</td>'
+            f'<td style="text-align:right; font-weight:700; color:{gap_col};">{gap_txt}</td>'
+            f'<td style="text-align:right; font-weight:600; color:{diff_col};">{diff_txt}</td>'
+            f'<td style="text-align:right; color:#475569;">{r["안전점검_점수"]:.1f}</td>'
+            f'<td style="text-align:right; color:#475569;">{r["중점고객_점수"]:.1f}</td>'
+            f'<td style="text-align:right; color:#475569;">{r["사용계약_점수"]:.1f}</td>'
+            f'<td style="text-align:right; color:#475569;">{r["상담응대_점수"]:.1f}</td>'
+            f'<td style="text-align:right; color:#475569;">{r["상담기여_점수"]:.1f}</td>'
+            f'<td style="text-align:right; color:#475569;">{r["만족도_점수"]:.1f}</td>'
+            f'</tr>'
+        )
+        h1_table_rows.append(row_html)
+
+    h1_tbody = "".join(h1_table_rows)
+    h1_html_table = (
+        '<div style="overflow-x:auto; border:1px solid #E2E8F0; border-radius:10px; background:white; margin-bottom:16px;">'
+        '<table class="studio-table">'
+        '<thead><tr>'
+        '<th>순위</th><th>센터명</th><th style="text-align:right;">상반기 총점</th><th style="text-align:right;">목표(911) 대비</th><th style="text-align:right;">전년 대비</th>'
+        '<th style="text-align:right;">안전점검(550)</th><th style="text-align:right;">중점고객(100)</th>'
+        '<th style="text-align:right;">사용계약(50)</th><th style="text-align:right;">상담응대(100)</th>'
+        '<th style="text-align:right;">상담기여(100)</th><th style="text-align:right;">만족도(100)</th>'
+        '</tr></thead>'
+        f'<tbody>{h1_tbody}</tbody>'
+        '</table>'
+        '</div>'
+    )
+    st.markdown(h1_html_table, unsafe_allow_html=True)
+
+    # 엑셀 다운로드 버튼
+    export_df = sorted_h1[['센터명', '총점', '안전점검_점수', '중점고객_점수', '사용계약_점수', '상담응대_점수', '상담기여_점수', '만족도_점수']].copy()
     export_df.insert(0, '순위', range(1, len(export_df) + 1))
     
-    st.dataframe(
-        export_df.style.format({
-            '총점': '{:.1f}',
-            '예상반기총점': '{:.1f}',
-            '전년동월대비_증감': lambda x: f"{'+' if x>0 else ''}{x:.1f}" if pd.notna(x) else '-',
-            '안전점검실점검율': '{:.1f}%',
-            '중점고객안전점검율': '{:.1f}%',
-            '사용계약율': '{:.1f}%',
-            '상담응대율': '{:.1f}%',
-            '상담기여도': '{:.1f}%',
-            '고객서비스만족도': '{:.1f}점'
-        }),
-        use_container_width=True,
-        height=500
+    csv_bytes = export_df.to_csv(index=False).encode('utf-8-sig')
+    st.download_button(
+        label="📥 2026년 상반기 종합 보고서 다운로드 (CSV)",
+        data=csv_bytes,
+        file_name="yesco_2026_h1_report.csv",
+        mime="text/csv",
+        use_container_width=True
     )
