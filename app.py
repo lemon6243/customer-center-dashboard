@@ -328,19 +328,37 @@ render_html("""
         padding-top: 1.2rem !important;
         padding-bottom: 2rem !important;
     }
+    [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+    }
     [data-testid="stSidebar"] [data-testid="stExpander"] {
         background-color: #FFFFFF !important;
         border: 1px solid #DCE3EA !important;
         border-radius: 8px !important;
-        margin-top: 10px !important;
-        margin-bottom: 10px !important;
+        margin-top: 6px !important;
+        margin-bottom: 8px !important;
         box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
+        position: relative !important;
+        clear: both !important;
+        display: block !important;
+        width: 100% !important;
     }
     [data-testid="stSidebar"] [data-testid="stExpander"] details {
         border: none !important;
     }
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary {
+        padding: 8px 12px !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        color: #172B4D !important;
+    }
     [data-testid="stSidebar"] .stFileUploader {
         margin-top: 6px !important;
+        position: relative !important;
+        clear: both !important;
+        width: 100% !important;
     }
 
 </style>
@@ -861,6 +879,8 @@ with st.sidebar.expander("📁 엑셀 데이터 교체 & 관리", expanded=False
         st.cache_data.clear()
         st.success("기본 데이터로 복원되었습니다.")
         st.rerun()
+
+st.sidebar.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
 # [6] 배점 규칙 & 기준 안내 (사이드바 하단에 깔끔하게 배치하여 겹침 차단)
 with st.sidebar.expander("⚖️ 배점 규칙 & 기준 안내", expanded=False):
