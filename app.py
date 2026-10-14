@@ -328,37 +328,19 @@ render_html("""
         padding-top: 1.2rem !important;
         padding-bottom: 2rem !important;
     }
-    [data-testid="stSidebar"] div[data-testid="stVerticalBlock"] {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 10px !important;
-    }
     [data-testid="stSidebar"] [data-testid="stExpander"] {
         background-color: #FFFFFF !important;
         border: 1px solid #DCE3EA !important;
         border-radius: 8px !important;
-        margin-top: 6px !important;
-        margin-bottom: 8px !important;
+        margin-top: 10px !important;
+        margin-bottom: 10px !important;
         box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
-        position: relative !important;
-        clear: both !important;
-        display: block !important;
-        width: 100% !important;
     }
     [data-testid="stSidebar"] [data-testid="stExpander"] details {
         border: none !important;
     }
-    [data-testid="stSidebar"] [data-testid="stExpander"] summary {
-        padding: 8px 12px !important;
-        font-weight: 700 !important;
-        font-size: 12px !important;
-        color: #172B4D !important;
-    }
     [data-testid="stSidebar"] .stFileUploader {
         margin-top: 6px !important;
-        position: relative !important;
-        clear: both !important;
-        width: 100% !important;
     }
 
 </style>
@@ -880,8 +862,6 @@ with st.sidebar.expander("📁 엑셀 데이터 교체 & 관리", expanded=False
         st.success("기본 데이터로 복원되었습니다.")
         st.rerun()
 
-st.sidebar.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
-
 # [6] 배점 규칙 & 기준 안내 (사이드바 하단에 깔끔하게 배치하여 겹침 차단)
 with st.sidebar.expander("⚖️ 배점 규칙 & 기준 안내", expanded=False):
     st.markdown("""
@@ -1049,38 +1029,35 @@ if menu == "🏠 홈":
             else:
                 colors.append('#0B4EA2')
 
-        if HAS_PLOTLY:
-            fig_bar = go.Figure()
-            fig_bar.add_trace(go.Bar(
-                x=sorted_df['센터명'],
-                y=sorted_df['총점'],
-                marker_color=colors,
-                text=[f"{v:.1f}" for v in sorted_df['총점']],
-                textposition='outside',
-                hovertemplate="<b>%{x}</b><br>총점: %{y:.1f}점<extra></extra>"
-            ))
-            # 당월 평균선
-            fig_bar.add_hline(y=avg_score, line_dash="dash", line_color="#0B4EA2", annotation_text=f"당월평균 ({avg_score:.1f})")
-            # 전년 동월선
-            if prev_avg is not None:
-                fig_bar.add_hline(y=prev_avg, line_dash="dot", line_color="#8E44AD", annotation_text=f"전년동월 ({prev_avg:.1f})")
-            # 최종 목표 911선 (5개월차 이상 또는 직관 비교용)
-            if month_in_half >= 5:
-                fig_bar.add_hline(y=911, line_dash="dash", line_color="#10B981", annotation_text="최종목표 (911)")
+        fig_bar = go.Figure()
+        fig_bar.add_trace(go.Bar(
+            x=sorted_df['센터명'],
+            y=sorted_df['총점'],
+            marker_color=colors,
+            text=[f"{v:.1f}" for v in sorted_df['총점']],
+            textposition='outside',
+            hovertemplate="<b>%{x}</b><br>총점: %{y:.1f}점<extra></extra>"
+        ))
+        # 당월 평균선
+        fig_bar.add_hline(y=avg_score, line_dash="dash", line_color="#0B4EA2", annotation_text=f"당월평균 ({avg_score:.1f})")
+        # 전년 동월선
+        if prev_avg is not None:
+            fig_bar.add_hline(y=prev_avg, line_dash="dot", line_color="#8E44AD", annotation_text=f"전년동월 ({prev_avg:.1f})")
+        # 최종 목표 911선 (5개월차 이상 또는 직관 비교용)
+        if month_in_half >= 5:
+            fig_bar.add_hline(y=911, line_dash="dash", line_color="#10B981", annotation_text="최종목표 (911)")
 
-            min_s = max(0, int(sorted_df['총점'].min() - 30))
-            max_s = min(1000, int(sorted_df['총점'].max() + 30))
-            fig_bar.update_layout(
-                height=380,
-                margin=dict(l=10, r=10, t=25, b=60),
-                xaxis_tickangle=-40,
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                yaxis=dict(range=[min_s, max_s], gridcolor='#F1F5F9')
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
-        else:
-            st.bar_chart(sorted_df.set_index('센터명')['총점'], color="#0B4EA2", height=380)
+        min_s = max(0, int(sorted_df['총점'].min() - 30))
+        max_s = min(1000, int(sorted_df['총점'].max() + 30))
+        fig_bar.update_layout(
+            height=380,
+            margin=dict(l=10, r=10, t=25, b=60),
+            xaxis_tickangle=-40,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            yaxis=dict(range=[min_s, max_s], gridcolor='#F1F5F9')
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
     with col_rank:
         render_html(f"""
@@ -1158,36 +1135,33 @@ elif menu == "📊 성과 분석":
             trend_data.append(row_dict)
     
     trend_df = pd.DataFrame(trend_data)
-    if HAS_PLOTLY:
-        fig_trend = go.Figure()
+    fig_trend = go.Figure()
+    fig_trend.add_trace(go.Scatter(
+        x=trend_df['month'],
+        y=trend_df['전체평균'],
+        mode='lines+markers',
+        name='전체평균',
+        line=dict(color='#64748B', width=2, dash='dash'),
+        marker=dict(size=6)
+    ))
+    if sel_trend_center != "전체평균" and sel_trend_center in trend_df.columns:
         fig_trend.add_trace(go.Scatter(
             x=trend_df['month'],
-            y=trend_df['전체평균'],
+            y=trend_df[sel_trend_center],
             mode='lines+markers',
-            name='전체평균',
-            line=dict(color='#64748B', width=2, dash='dash'),
-            marker=dict(size=6)
+            name=f'{sel_trend_center} 센터',
+            line=dict(color='#0B4EA2', width=3),
+            marker=dict(size=8, color='#0B4EA2')
         ))
-        if sel_trend_center != "전체평균" and sel_trend_center in trend_df.columns:
-            fig_trend.add_trace(go.Scatter(
-                x=trend_df['month'],
-                y=trend_df[sel_trend_center],
-                mode='lines+markers',
-                name=f'{sel_trend_center} 센터',
-                line=dict(color='#0B4EA2', width=3),
-                marker=dict(size=8, color='#0B4EA2')
-            ))
-        fig_trend.update_layout(
-            height=320,
-            margin=dict(l=10, r=10, t=20, b=40),
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            yaxis=dict(gridcolor='#F1F5F9'),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
-        st.plotly_chart(fig_trend, use_container_width=True)
-    else:
-        st.line_chart(trend_df.set_index('month'), height=320)
+    fig_trend.update_layout(
+        height=320,
+        margin=dict(l=10, r=10, t=20, b=40),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        yaxis=dict(gridcolor='#F1F5F9'),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    )
+    st.plotly_chart(fig_trend, use_container_width=True)
 
     st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
 
@@ -1334,30 +1308,26 @@ elif menu == "🎯 센터 진단":
         ]
         categories_closed = categories + [categories[0]]
         values_closed = values + [values[0]]
-        if HAS_PLOTLY:
-            fig_radar = go.Figure()
-            fig_radar.add_trace(go.Scatterpolar(
-                r=values_closed,
-                theta=categories_closed,
-                fill='toself',
-                name=c_rec['센터명'],
-                line_color='#0B4EA2',
-                fillcolor='rgba(11, 78, 162, 0.3)'
-            ))
-            fig_radar.update_layout(
-                polar=dict(
-                    radialaxis=dict(visible=True, range=[0, 100], tickfont=dict(size=9, color="#64748B")),
-                    angularaxis=dict(tickfont=dict(size=10, color="#172B4D", weight=700))
-                ),
-                showlegend=False,
-                height=320,
-                margin=dict(l=25, r=25, t=20, b=20),
-                paper_bgcolor='rgba(0,0,0,0)'
-            )
-            st.plotly_chart(fig_radar, use_container_width=True)
-        else:
-            radar_fallback_df = pd.DataFrame({"지표": categories, "달성률(%)": values}).set_index("지표")
-            st.bar_chart(radar_fallback_df, color="#0B4EA2", height=320)
+        fig_radar = go.Figure()
+        fig_radar.add_trace(go.Scatterpolar(
+            r=values_closed,
+            theta=categories_closed,
+            fill='toself',
+            name=c_rec['센터명'],
+            line_color='#0B4EA2',
+            fillcolor='rgba(11, 78, 162, 0.3)'
+        ))
+        fig_radar.update_layout(
+            polar=dict(
+                radialaxis=dict(visible=True, range=[0, 100], tickfont=dict(size=9, color="#64748B")),
+                angularaxis=dict(tickfont=dict(size=10, color="#172B4D", weight=700))
+            ),
+            showlegend=False,
+            height=320,
+            margin=dict(l=25, r=25, t=20, b=20),
+            paper_bgcolor='rgba(0,0,0,0)'
+        )
+        st.plotly_chart(fig_radar, use_container_width=True)
 
     with col_table:
         render_html(f"""
@@ -1626,33 +1596,30 @@ elif menu == "🌡️ KPI 히트맵":
     sorted_heat_df = cur_df.sort_values(by="총점", ascending=False).set_index('센터명')
     matrix_vals = sorted_heat_df[heat_kpis].values
 
-    if HAS_PLOTLY:
-        fig_heat = px.imshow(
-            matrix_vals,
-            labels=dict(x="평가 지표", y="고객센터", color="달성률(%)"),
-            x=heat_labels,
-            y=sorted_heat_df.index,
-            color_continuous_scale=[
-                [0.0, "#D92D20"],
-                [0.75, "#E66A1F"],
-                [0.85, "#F59E0B"],
-                [0.90, "#84CC16"],
-                [1.0, "#178A5B"]
-            ],
-            zmin=60,
-            zmax=100,
-            text_auto=".1f",
-            aspect="auto"
-        )
-        fig_heat.update_layout(
-            height=620,
-            margin=dict(l=20, r=20, t=20, b=40),
-            xaxis_tickfont=dict(size=11, color="#1E293B", weight=700),
-            yaxis_tickfont=dict(size=11, color="#1E293B")
-        )
-        st.plotly_chart(fig_heat, use_container_width=True)
-    else:
-        st.dataframe(sorted_heat_df[heat_kpis].rename(columns=dict(zip(heat_kpis, heat_labels))).style.format("{:.1f}%"), height=500, use_container_width=True)
+    fig_heat = px.imshow(
+        matrix_vals,
+        labels=dict(x="평가 지표", y="고객센터", color="달성률(%)"),
+        x=heat_labels,
+        y=sorted_heat_df.index,
+        color_continuous_scale=[
+            [0.0, "#D92D20"],
+            [0.75, "#E66A1F"],
+            [0.85, "#F59E0B"],
+            [0.90, "#84CC16"],
+            [1.0, "#178A5B"]
+        ],
+        zmin=60,
+        zmax=100,
+        text_auto=".1f",
+        aspect="auto"
+    )
+    fig_heat.update_layout(
+        height=620,
+        margin=dict(l=20, r=20, t=20, b=40),
+        xaxis_tickfont=dict(size=11, color="#1E293B", weight=700),
+        yaxis_tickfont=dict(size=11, color="#1E293B")
+    )
+    st.plotly_chart(fig_heat, use_container_width=True)
 
 
 # =============================================================================
@@ -1671,30 +1638,27 @@ elif menu == "🔬 심화 분석":
     c_s1, c_s2 = st.columns([3, 2])
     with c_s1:
         st.markdown("#### 🎯 안전점검 실점검율 vs 총점 상관분포")
-        if HAS_PLOTLY:
-            fig_scatter = px.scatter(
-                cur_df,
-                x="안전점검실점검율",
-                y="총점",
-                size="예상반기총점",
-                color="도달판정",
-                hover_name="센터명",
-                color_discrete_map={"정상궤도": "#10B981", "주의": "#F59E0B", "위험": "#EF4444"},
-                labels={"안전점검실점검율": "안전점검 실점검율(%)", "총점": "당월 총점(점)"}
-            )
-            fig_scatter.add_hline(y=911, line_dash="dash", line_color="#EF4444", annotation_text="911점선")
-            fig_scatter.add_vline(x=benchmark_safety, line_dash="dash", line_color="#0B4EA2", annotation_text=f"기준진척 ({benchmark_safety:.1f}%)")
-            fig_scatter.update_layout(
-                height=380,
-                margin=dict(l=10, r=10, t=30, b=40),
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                yaxis=dict(gridcolor='#F1F5F9'),
-                xaxis=dict(gridcolor='#F1F5F9')
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-        else:
-            st.scatter_chart(cur_df, x="안전점검실점검율", y="총점", color="도달판정", height=380)
+        fig_scatter = px.scatter(
+            cur_df,
+            x="안전점검실점검율",
+            y="총점",
+            size="예상반기총점",
+            color="도달판정",
+            hover_name="센터명",
+            color_discrete_map={"정상궤도": "#10B981", "주의": "#F59E0B", "위험": "#EF4444"},
+            labels={"안전점검실점검율": "안전점검 실점검율(%)", "총점": "당월 총점(점)"}
+        )
+        fig_scatter.add_hline(y=911, line_dash="dash", line_color="#EF4444", annotation_text="911점선")
+        fig_scatter.add_vline(x=benchmark_safety, line_dash="dash", line_color="#0B4EA2", annotation_text=f"기준진척 ({benchmark_safety:.1f}%)")
+        fig_scatter.update_layout(
+            height=380,
+            margin=dict(l=10, r=10, t=30, b=40),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            yaxis=dict(gridcolor='#F1F5F9'),
+            xaxis=dict(gridcolor='#F1F5F9')
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
 
     with c_s2:
         st.markdown("#### 🔗 6대 지표 상관계수 행렬")
@@ -1702,26 +1666,20 @@ elif menu == "🔬 심화 분석":
         labels_short = ['안전', '중점', '계약', '응대', '기여', '만족', '총점']
         corr_matrix = cur_df[score_cols].corr().values
 
-        if HAS_PLOTLY:
-            fig_corr = px.imshow(
-                corr_matrix,
-                x=labels_short,
-                y=labels_short,
-                color_continuous_scale="RdBu_r",
-                zmin=-1,
-                zmax=1,
-                text_auto=".2f"
-            )
-            fig_corr.update_layout(
-                height=380,
-                margin=dict(l=10, r=10, t=30, b=40)
-            )
-            st.plotly_chart(fig_corr, use_container_width=True)
-        else:
-            corr_df = cur_df[score_cols].corr()
-            corr_df.columns = labels_short
-            corr_df.index = labels_short
-            st.dataframe(corr_df.style.format("{:.2f}"), height=380, use_container_width=True)
+        fig_corr = px.imshow(
+            corr_matrix,
+            x=labels_short,
+            y=labels_short,
+            color_continuous_scale="RdBu_r",
+            zmin=-1,
+            zmax=1,
+            text_auto=".2f"
+        )
+        fig_corr.update_layout(
+            height=380,
+            margin=dict(l=10, r=10, t=30, b=40)
+        )
+        st.plotly_chart(fig_corr, use_container_width=True)
 
 
 # =============================================================================
