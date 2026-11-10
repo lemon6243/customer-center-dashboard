@@ -34,8 +34,45 @@ export const App: React.FC = () => {
   const latestMonth = useMemo(() => {
     return allAvailableMonths.length > 0
       ? allAvailableMonths[allAvailableMonths.length - 1]
-      : '2026-08';
+      : '2026-10';
   }, [allAvailableMonths]);
+
+  // 서버의 latest_data.xlsx 직접 로드 (엑셀 실시간 동기화)
+  React.useEffect(() => {
+    const loadExcelDirectly = async () => {
+      try {
+        const res = await fetch('/latest_data.xlsx');
+        if (!res.ok) return;
+        const data = await res.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawRows: any[] = XLSX.utils.sheet_to_json(firstSheet);
+        if (rawRows && rawRows.length > 0) {
+          const parsedRecords: ScoredRecord[] = rawRows.map(row => {
+            const raw: RawRecord = {
+              센터명: row['센터명'] || row['센터'] || '미상',
+              평가월: normalizeDateString(row['평가월'] || '2026-10-01'),
+              안전점검실점검율: row['안전점검실점검율'] ?? null,
+              중점고객안전점검율: row['중점고객안전점검율'] ?? null,
+              사용계약율: row['사용계약율'] ?? null,
+              상담응대율: row['상담응대율'] ?? null,
+              상담기여도: row['상담기여도'] ?? null,
+              고객서비스만족도: row['고객서비스만족도'] ?? null,
+              민원대응적정성: Number(row['민원대응적정성'] || 0),
+              주의경고: Number(row['주의경고'] || 0),
+              가점: Number(row['가점'] || 0),
+              총점: row['총점'] !== undefined && row['총점'] !== null ? Number(row['총점']) : null,
+            };
+            return processAndScoreRecord(raw);
+          });
+          setRecords(parsedRecords);
+        }
+      } catch (err) {
+        console.warn('Excel direct load fallback to initialScoredData', err);
+      }
+    };
+    loadExcelDirectly();
+  }, []);
 
   // 사용자가 수동 선택한 월 (기본값 빈 문자열 -> 항상 최신월을 디폴트로 표시)
   const [selectedMonth, setSelectedMonth] = useState<string>('');
@@ -82,7 +119,7 @@ export const App: React.FC = () => {
       const parsedRecords: ScoredRecord[] = rawRows.map(row => {
         const raw: RawRecord = {
           센터명: row['센터명'] || row['센터'] || '미상',
-          평가월: normalizeDateString(row['평가월'] || '2026-02-01'),
+          평가월: normalizeDateString(row['평가월'] || '2026-10-01'),
           안전점검실점검율: row['안전점검실점검율'] ?? null,
           중점고객안전점검율: row['중점고객안전점검율'] ?? null,
           사용계약율: row['사용계약율'] ?? null,

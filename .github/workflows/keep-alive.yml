@@ -2,24 +2,23 @@ name: Keep Streamlit App Alive
 
 on:
   schedule:
-    # 10시간마다 실행 (12시간 잠자기 임계값보다 짧게)
-    - cron: '0 */10 * * *'
-  workflow_dispatch:  # 수동 실행도 가능
+    # 6시간마다 자동 실행 (Streamlit의 12시간 비활성 잠자기 제한 방지)
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: '테스트할 Streamlit 앱 URL (비워두면 기본 설정 URL 사용)'
+        required: false
+        default: ''
 
 jobs:
   keep-alive:
     runs-on: ubuntu-latest
-    
-    permissions:
-      contents: write
-    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create empty commit and push
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "GitHub Actions"
-          git commit --allow-empty -m "chore: keep alive [skip ci]"
-          git push
+      - name: Wake up Streamlit App
+        uses: gpenessot/streamlit-keep-alive@v1
+        with:
+          # 실제 본인의 Streamlit 앱 주소(예: https://xxxx.streamlit.app)가 맞는지 확인해주세요.
+          # GitHub Settings -> Secrets and variables -> Actions -> Variables에 STREAMLIT_APP_URL로 등록하셔도 됩니다.
+          app-urls: |
+            ${{ inputs.app_url || vars.STREAMLIT_APP_URL || secrets.STREAMLIT_APP_URL || 'https://customer-center-dashboard.streamlit.app' }}

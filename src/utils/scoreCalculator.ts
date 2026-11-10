@@ -1,7 +1,7 @@
 import { RawRecord, ScoredRecord, PeriodInfo } from '../types';
 
 export function normalizeDateString(val: any): string {
-  if (val === null || val === undefined) return '2026-08-01';
+  if (val === null || val === undefined) return '2026-10-01';
   if (typeof val === 'number') {
     if (val > 30000 && val < 70000) {
       // Excel serial date code
@@ -37,7 +37,7 @@ export function normalizeDateString(val: any): string {
     const day = (parts[2] || '01').padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
-  return str || '2026-08-01';
+  return str || '2026-10-01';
 }
 
 export function getPeriodInfo(dateInput: any): PeriodInfo {
